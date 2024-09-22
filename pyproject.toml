@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "mo-exporter"
+version = "0.1.0"
+description = ""
+authors = ["Zash <zash@fantasymail.de>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+mobase-stubs = "^2.5.2"
+pyqt6 = "^6.7.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
