@@ -46,14 +46,25 @@ class Exporter(mobase.IPluginTool):
     def display(self: mobase.IPluginTool) -> None:
         raise NotImplementedError
 
-    def _active_mod_paths(self, reverse: bool = False) -> Iterable[Path]:
-        """Yield the path to active mods in MOs load order."""
-        mods_path = Path(self._organizer.modsPath())
+    def _active_mod_names(self, reverse: bool = False) -> Iterable[str]:
+        """Yield active mods in MOs load order."""
         modlist = self._organizer.modList()
         mods_load_order = modlist.allModsByProfilePriority()
         for mod in reversed(mods_load_order) if reverse else mods_load_order:
             if modlist.state(mod) & mobase.ModState.ACTIVE:
-                yield mods_path / mod
+                yield mod
+
+    def _active_mod_paths(self, reverse: bool = False) -> Iterable[Path]:
+        """Yield the (absolute) path to active mods in MOs load order."""
+        mods_path = Path(self._organizer.modsPath())
+        for mod in self._active_mod_names(reverse):
+            yield mods_path / mod
+
+    def _active_mods(self, reverse: bool = False) -> Iterable[mobase.IModInterface]:
+        """Yield active mods in MOs load order."""
+        modlist = self._organizer.modList()
+        for mod in self._active_mod_names(reverse):
+            yield modlist.getMod(mod)
 
 
 class FolderExporter(Exporter):
@@ -137,5 +148,47 @@ class ZipExporter(Exporter):
         os.startfile(target)
 
 
+class MarkdownExporter(Exporter):
+    def name(self) -> str:
+        return f"{super().name()} Markdown"
+
+    def displayName(self) -> str:
+        return f"{super().displayName()}/Markdown List"
+
+    def master(self) -> str:
+        return super().name()
+
+    def display(self) -> None:
+        parent = self._parentWidget()
+        active_mods = self._active_mods()
+        if not active_mods:
+            QMessageBox.information(parent, self.name(), "No active mos!")
+            return
+        target, _ = QFileDialog.getSaveFileName(
+            parent,
+            "Enter Markdown file name to export active modlist to.",
+            filter="*.md",
+        )
+        if not target:
+            return
+        nexus_game_name = self._organizer.managedGame().gameNexusName()
+        lines: list[str] = []
+        for mod in active_mods:
+            name_str = mod.name()
+            url = mod.url()
+            if not url and (nexus_id := mod.nexusId()):
+                url = self._nexus_mod_url(nexus_game_name, nexus_id)
+            if url:
+                name_str = f"[{name_str}]({url})"
+            if version_str := mod.version().displayString():
+                version_str = f" v{version_str}"
+            lines.append(f"- {name_str}{version_str}\n")
+        with open(target, "w") as file:
+            file.writelines(lines)
+
+    def _nexus_mod_url(self, nexus_name: str, mod_id: str | int) -> str:
+        return f"https://nexusmods.com/{nexus_name}/mods/{mod_id}"
+
+
 def createPlugins() -> list[mobase.IPlugin]:
-    return [FolderExporter(), ZipExporter()]
+    return [FolderExporter(), ZipExporter(), MarkdownExporter()]
