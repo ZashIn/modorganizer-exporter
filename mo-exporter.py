@@ -121,8 +121,8 @@ class ZipExporter(Exporter):
 
     def display(self) -> None:
         parent = self._parentWidget()
-        active_mod_paths = list(self._active_mod_paths())
-        if not active_mod_paths:
+        active_mods = list(self._active_mods())
+        if not active_mods:
             QMessageBox.information(parent, self.name(), "No active mos!")
             return
         target, _ = QFileDialog.getSaveFileName(
@@ -130,21 +130,36 @@ class ZipExporter(Exporter):
         )
         if not target:
             return
+
         progress = QProgressDialog(
-            "Exporting mods...", "Abort", 0, len(active_mod_paths), parent
+            "Collecting mod files...", "Abort", 0, len(active_mods), parent
         )
+        paths: dict[str, str] = {}
+        for i, mod in enumerate(active_mods):
+            mod_tree = mod.fileTree()
+            progress.setValue(i)
+
+            def mod_tree_walker(
+                path: str, entry: mobase.FileTreeEntry
+            ) -> mobase.IFileTree.WalkReturn:
+                entry_relative_path = Path(path, entry.name())
+                paths[str(entry_relative_path)] = str(
+                    Path(mod.absolutePath(), entry_relative_path)
+                )
+                return mobase.IFileTree.WalkReturn.CONTINUE
+
+            mod_tree.walk(mod_tree_walker)
+        progress.setValue(len(active_mods))
+
+        if not paths:
+            return
+        progress = QProgressDialog("Exporting mods...", "Abort", 0, len(paths), parent)
         progress.setWindowModality(Qt.WindowModality.WindowModal)
-        # TODO: virtual tree = no double files in zip
         with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as zip_file:
-            for i, mod_path in enumerate(active_mod_paths):
+            for i, [relative, absolute] in enumerate(paths.items()):
                 progress.setValue(i)
-                if progress.wasCanceled():
-                    break
-                for file_path in mod_path.rglob("*"):
-                    file_path_rel = file_path.relative_to(mod_path)
-                    if str(file_path_rel) != "meta.ini":
-                        zip_file.write(file_path, file_path_rel)
-        progress.setValue(len(active_mod_paths))
+                zip_file.write(absolute, relative)
+        progress.setValue(len(paths))
         os.startfile(target)
 
 
