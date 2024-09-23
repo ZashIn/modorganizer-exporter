@@ -143,10 +143,12 @@ class FolderExporter(Exporter):
             if progress.wasCanceled():
                 break
             progress.setValue(i)
+            abs_target_path = target_path / relative
             if absolute.is_dir():
-                absolute.mkdir(exist_ok=True)
+                abs_target_path.mkdir(exist_ok=True)
             else:
-                shutil.copy(absolute, target_path / relative)
+                abs_target_path.parent.mkdir(exist_ok=True)
+                shutil.copy(absolute, abs_target_path)
         progress.setValue(len(paths))
         os.startfile(target_path)
 
