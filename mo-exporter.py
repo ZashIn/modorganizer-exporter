@@ -85,7 +85,7 @@ class FolderExporter(Exporter):
             return
         target = QFileDialog.getExistingDirectory(
             parent,
-            "Select folder to export all active mod files into.",
+            "Select a folder to export all active mod files into",
             options=QFileDialog.Option.ShowDirsOnly,
         )
         if not target:
@@ -126,7 +126,7 @@ class ZipExporter(Exporter):
             QMessageBox.information(parent, self.name(), "No active mos!")
             return
         target, _ = QFileDialog.getSaveFileName(
-            parent, "Enter zip file name to export active mods to.", filter="*.zip"
+            parent, "Save zip file with all active mods files", filter="*.zip"
         )
         if not target:
             return
@@ -166,7 +166,7 @@ class MarkdownExporter(Exporter):
             return
         target, _ = QFileDialog.getSaveFileName(
             parent,
-            "Enter Markdown file name to export active modlist to.",
+            "Save a Markdown file with the active mod list",
             filter="*.md",
         )
         if not target:
