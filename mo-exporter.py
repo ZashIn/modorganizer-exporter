@@ -1,14 +1,14 @@
-from abc import abstractmethod
 import os
 import shutil
-from collections.abc import Iterable, Sequence
-from pathlib import Path
 import zipfile
+from abc import abstractmethod
+from collections.abc import Collection, Iterable, Sequence
+from pathlib import Path
 
 import mobase
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
-from PyQt6.QtWidgets import QFileDialog, QMessageBox, QProgressDialog
+from PyQt6.QtWidgets import QFileDialog, QMessageBox, QProgressDialog, QWidget
 
 
 class Exporter(mobase.IPluginTool):
@@ -66,6 +66,44 @@ class Exporter(mobase.IPluginTool):
         for mod in self._active_mod_names(reverse):
             yield modlist.getMod(mod)
 
+    def _collect_mod_file_paths(
+        self,
+        mods: Collection[mobase.IModInterface],
+        parentWidget: QWidget | None = None,
+    ) -> dict[Path, Path]:
+        """Returns `{relative path: absolute path}` for all files/folders of the given mods.
+
+        Args:
+            active_mods: a list of mods
+            parentWidget (optional): If given, show a `QProgressDialog`. Defaults to None.
+        """
+        progress = None
+        if parentWidget:
+            progress = QProgressDialog(
+                "Collecting mod files...", "Abort", 0, len(mods), parentWidget
+            )
+        paths: dict[Path, Path] = {}
+        for i, mod in enumerate(mods):
+            mod_tree = mod.fileTree()
+            if progress:
+                if progress.wasCanceled():
+                    return {}
+                progress.setValue(i)
+
+            def mod_tree_walker(
+                path: str, entry: mobase.FileTreeEntry
+            ) -> mobase.IFileTree.WalkReturn:
+                entry_relative_path = Path(path, entry.name())
+                paths[entry_relative_path] = Path(
+                    mod.absolutePath(), entry_relative_path
+                )
+                return mobase.IFileTree.WalkReturn.CONTINUE
+
+            mod_tree.walk(mod_tree_walker)
+        if progress:
+            progress.setValue(len(mods))
+        return paths
+
 
 class FolderExporter(Exporter):
     def name(self) -> str:
@@ -74,39 +112,43 @@ class FolderExporter(Exporter):
     def displayName(self) -> str:
         return f"{super().displayName()}/to folder"
 
+    def description(self) -> str:
+        return "Export active mod files to a folder"
+
     def master(self) -> str:
         return super().name()
 
     def display(self) -> None:
         parent = self._parentWidget()
-        active_mod_paths = list(self._active_mod_paths())
-        if not active_mod_paths:
+        active_mods = list(self._active_mods())
+        if not active_mods:
             QMessageBox.information(parent, self.name(), "No active mods!")
             return
-        target = QFileDialog.getExistingDirectory(
+        target_dir = QFileDialog.getExistingDirectory(
             parent,
             "Select a folder to export all active mod files into",
             options=QFileDialog.Option.ShowDirsOnly,
         )
-        if not target:
+        if not target_dir:
             return
-        progress = QProgressDialog(
-            "Exporting mods...", "Abort", 0, len(active_mod_paths), parent
-        )
+        target_path = Path(target_dir)
+        # Collect mod paths
+        paths = self._collect_mod_file_paths(active_mods, parent)
+        if not paths:
+            return
+        # Copy mod files to target dir
+        progress = QProgressDialog("Exporting mods...", "Abort", 0, len(paths), parent)
         progress.setWindowModality(Qt.WindowModality.WindowModal)
-        # TODO: virtual tree = minimize copy / overwrites
-        for i, mod_path in enumerate(active_mod_paths):
-            progress.setValue(i)
+        for i, [relative, absolute] in enumerate(paths.items()):
             if progress.wasCanceled():
                 break
-            shutil.copytree(
-                mod_path,
-                target,
-                ignore=lambda src, names: ["meta.ini"] if Path(src) == mod_path else [],
-                dirs_exist_ok=True,
-            )
-        progress.setValue(len(active_mod_paths))
-        os.startfile(target)
+            progress.setValue(i)
+            if absolute.is_dir():
+                absolute.mkdir(exist_ok=True)
+            else:
+                shutil.copy(absolute, target_path / relative)
+        progress.setValue(len(paths))
+        os.startfile(target_path)
 
 
 class ZipExporter(Exporter):
@@ -115,6 +157,9 @@ class ZipExporter(Exporter):
 
     def displayName(self) -> str:
         return f"{super().displayName()}/to zip file"
+
+    def description(self) -> str:
+        return "Export active mod files to a zip file"
 
     def master(self) -> str:
         return super().name()
@@ -130,33 +175,17 @@ class ZipExporter(Exporter):
         )
         if not target:
             return
-
-        progress = QProgressDialog(
-            "Collecting mod files...", "Abort", 0, len(active_mods), parent
-        )
-        paths: dict[str, str] = {}
-        for i, mod in enumerate(active_mods):
-            mod_tree = mod.fileTree()
-            progress.setValue(i)
-
-            def mod_tree_walker(
-                path: str, entry: mobase.FileTreeEntry
-            ) -> mobase.IFileTree.WalkReturn:
-                entry_relative_path = Path(path, entry.name())
-                paths[str(entry_relative_path)] = str(
-                    Path(mod.absolutePath(), entry_relative_path)
-                )
-                return mobase.IFileTree.WalkReturn.CONTINUE
-
-            mod_tree.walk(mod_tree_walker)
-        progress.setValue(len(active_mods))
-
+        # Collect mod paths
+        paths = self._collect_mod_file_paths(active_mods, parent)
         if not paths:
             return
+        # Store mod files in target zip
         progress = QProgressDialog("Exporting mods...", "Abort", 0, len(paths), parent)
         progress.setWindowModality(Qt.WindowModality.WindowModal)
         with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as zip_file:
             for i, [relative, absolute] in enumerate(paths.items()):
+                if progress.wasCanceled():
+                    break
                 progress.setValue(i)
                 zip_file.write(absolute, relative)
         progress.setValue(len(paths))
@@ -170,6 +199,9 @@ class MarkdownExporter(Exporter):
     def displayName(self) -> str:
         return f"{super().displayName()}/Markdown List"
 
+    def description(self) -> str:
+        return "Export active mod list as a markdown list"
+
     def master(self) -> str:
         return super().name()
 
@@ -177,7 +209,7 @@ class MarkdownExporter(Exporter):
         parent = self._parentWidget()
         active_mods = self._active_mods()
         if not active_mods:
-            QMessageBox.information(parent, self.name(), "No active mos!")
+            QMessageBox.information(parent, self.name(), "No active mods!")
             return
         target, _ = QFileDialog.getSaveFileName(
             parent,
