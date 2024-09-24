@@ -1,3 +1,4 @@
+import enum
 import os
 import shutil
 import zipfile
@@ -45,6 +46,9 @@ class Exporter(mobase.IPluginTool):
     @abstractmethod
     def display(self: mobase.IPluginTool) -> None:
         raise NotImplementedError
+
+    def _get_setting(self, key: str) -> mobase.MoVariant:
+        return self._organizer.pluginSetting(self.name(), key)
 
     def _active_mod_names(self, reverse: bool = False) -> Iterable[str]:
         """Yield active mods in MOs load order."""
@@ -110,7 +114,7 @@ class FolderExporter(Exporter):
         return f"{super().name()} Folder"
 
     def displayName(self) -> str:
-        return f"{super().displayName()}/to folder"
+        return f"{super().displayName()}/To Folder"
 
     def description(self) -> str:
         return "Export active mod files to a folder"
@@ -153,18 +157,51 @@ class FolderExporter(Exporter):
         os.startfile(target_path)
 
 
+class ZipCompressionMethod(enum.IntEnum):
+    ZIP_STORED = zipfile.ZIP_STORED
+    ZIP_DEFLATED = zipfile.ZIP_DEFLATED
+    ZIP_BZIP2 = zipfile.ZIP_BZIP2
+    ZIP_LZMA = zipfile.ZIP_LZMA
+
+
 class ZipExporter(Exporter):
     def name(self) -> str:
         return f"{super().name()} Zip"
 
     def displayName(self) -> str:
-        return f"{super().displayName()}/to zip file"
+        return f"{super().displayName()}/To Zip File"
 
     def description(self) -> str:
         return "Export active mod files to a zip file"
 
     def master(self) -> str:
         return super().name()
+
+    def settings(self) -> Sequence[mobase.PluginSetting]:
+        return [
+            mobase.PluginSetting(
+                "compression",
+                f"Compression for the .zip file:\n{'\n'.join(e.name for e in ZipCompressionMethod)}",
+                "ZIP_DEFLATED",
+            ),
+            mobase.PluginSetting(
+                "compression-level", "Compression level (0-9, see python ZipFile)", -1
+            ),
+        ]
+
+    @property
+    def _compression(self) -> ZipCompressionMethod:
+        try:
+            return ZipCompressionMethod[str(self._get_setting("compression"))]
+        except KeyError:
+            return ZipCompressionMethod.ZIP_DEFLATED
+
+    @property
+    def _compression_level(self) -> int | None:
+        setting = self._get_setting("compression-level")
+        if isinstance(setting, int) and setting > 0:
+            return setting
+        return None
 
     def display(self) -> None:
         parent = self._parentWidget()
@@ -184,7 +221,9 @@ class ZipExporter(Exporter):
         # Store mod files in target zip
         progress = QProgressDialog("Exporting mods...", "Abort", 0, len(paths), parent)
         progress.setWindowModality(Qt.WindowModality.WindowModal)
-        with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        with zipfile.ZipFile(
+            target, "w", int(self._compression), compresslevel=self._compression_level
+        ) as zip_file:
             for i, [relative, absolute] in enumerate(paths.items()):
                 if progress.wasCanceled():
                     break
