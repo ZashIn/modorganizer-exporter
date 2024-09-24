@@ -8,7 +8,7 @@ from pathlib import Path
 
 import mobase
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QIcon, QGuiApplication
 from PyQt6.QtWidgets import QFileDialog, QMessageBox, QProgressDialog, QWidget
 
 
@@ -119,10 +119,10 @@ class ExporterTool(ExporterBase, mobase.IPluginTool):
 
 class FolderExporter(ExporterTool):
     def name(self) -> str:
-        return f"{super().name()} Folder"
+        return f"{self._base_name} Folder"
 
     def displayName(self) -> str:
-        return f"{super().displayName()}/To Folder"
+        return f"{self._base_name}/To Folder"
 
     def description(self) -> str:
         return "Export active mod files to a folder"
@@ -171,10 +171,10 @@ class ZipCompressionMethod(enum.IntEnum):
 
 class ZipExporter(ExporterTool):
     def name(self) -> str:
-        return f"{super().name()} Zip"
+        return f"{self._base_name} Zip"
 
     def displayName(self) -> str:
-        return f"{super().displayName()}/To Zip File"
+        return f"{self._base_name}/To Zip File"
 
     def description(self) -> str:
         return "Export active mod files to a zip file"
@@ -237,10 +237,10 @@ class ZipExporter(ExporterTool):
 
 class MarkdownExporter(ExporterTool):
     def name(self) -> str:
-        return f"{super().name()} Markdown"
+        return f"{self._base_name} Markdown"
 
     def displayName(self) -> str:
-        return f"{super().displayName()}/Markdown List"
+        return f"{self._base_name}/Markdown List"
 
     def description(self) -> str:
         return "Export active mod list as a markdown list"
@@ -258,9 +258,16 @@ class MarkdownExporter(ExporterTool):
         )
         if not target:
             return
+        with open(target, "w") as file:
+            file.writelines(self._markdown_modlist(active_mods))
+
+    def _markdown_modlist(self, mods: Iterable[mobase.IModInterface]) -> Iterable[str]:
+        """
+        Yields:
+            Markdown line: `- [mod name](mod url) v1.2.3` (+ newline)
+        """
         nexus_game_name = self._organizer.managedGame().gameNexusName()
-        lines: list[str] = []
-        for mod in active_mods:
+        for mod in mods:
             name_str = mod.name()
             url = mod.url()
             if not url and (nexus_id := mod.nexusId()):
@@ -269,14 +276,46 @@ class MarkdownExporter(ExporterTool):
                 name_str = f"[{name_str}]({url})"
             if version_str := mod.version().displayString():
                 version_str = f" v{version_str}"
-            lines.append(f"- {name_str}{version_str}\n")
-        with open(target, "w") as file:
-            file.writelines(lines)
+            yield f"- {name_str}{version_str}\n"
 
     def _nexus_mod_url(self, nexus_name: str, mod_id: str | int) -> str:
         return f"https://nexusmods.com/{nexus_name}/mods/{mod_id}"
 
 
+class MarkdownToClip(MarkdownExporter):
+    def name(self) -> str:
+        return f"{self._base_name} Markdown to Clipboard"
+
+    def displayName(self) -> str:
+        return f"{self._base_name}/Markdown List to Clipboard"
+
+    def description(self) -> str:
+        return "Copy active mod list as a markdown to clipboard"
+
+    def master(self) -> str:
+        return super().master()
+
+    def display(self) -> None:
+        parent = self._parentWidget()
+        active_mods = self._active_mods()
+        if not active_mods:
+            QMessageBox.information(parent, self.name(), "No active mods!")
+            return
+        clipboard = QGuiApplication.clipboard()
+        assert clipboard is not None
+        lines = list(self._markdown_modlist(active_mods))
+        clipboard.setText("".join(lines))
+        QMessageBox.information(
+            parent, self.name(), f"{len(lines)} mod infos copied to clipboard"
+        )
+
+
 def createPlugins() -> list[mobase.IPlugin]:
     # ExporterBase is not shown in Exporter/... Tools menu, but parent plugin for the settings.
-    return [ExporterBase(), FolderExporter(), ZipExporter(), MarkdownExporter()]
+    return [
+        ExporterBase(),
+        FolderExporter(),
+        ZipExporter(),
+        MarkdownExporter(),
+        MarkdownToClip(),
+    ]
