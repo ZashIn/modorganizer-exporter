@@ -12,17 +12,17 @@ from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QFileDialog, QMessageBox, QProgressDialog, QWidget
 
 
-class Exporter(mobase.IPluginTool):
+class ExporterBase(mobase.IPlugin):
     _base_name = "Exporter"
 
     def init(self, organizer: mobase.IOrganizer) -> bool:
         self._organizer = organizer
         return True
 
-    def author(self: mobase.IPlugin) -> str:
+    def author(self) -> str:
         return "Zash"
 
-    def description(self: mobase.IPlugin) -> str:
+    def description(self) -> str:
         return "Export active mod files"
 
     def name(self) -> str:
@@ -31,20 +31,29 @@ class Exporter(mobase.IPluginTool):
     def displayName(self) -> str:
         return self._base_name
 
-    def version(self: mobase.IPlugin) -> mobase.VersionInfo:
+    def version(self) -> mobase.VersionInfo:
         return mobase.VersionInfo(0, 1, 0, mobase.ReleaseType.ALPHA)
 
-    def settings(self: mobase.IPlugin) -> Sequence[mobase.PluginSetting]:
+    def settings(self) -> Sequence[mobase.PluginSetting]:
         return []
 
-    def icon(self: mobase.IPluginTool) -> QIcon:
+
+class ExporterTool(ExporterBase, mobase.IPluginTool):
+    def __init__(self) -> None:
+        super().__init__()
+        mobase.IPluginTool.__init__(self)
+
+    def master(self) -> str:
+        return super().name()
+
+    def icon(self) -> QIcon:
         return QIcon()
 
-    def tooltip(self: mobase.IPluginTool) -> str:
+    def tooltip(self) -> str:
         return self.description()
 
     @abstractmethod
-    def display(self: mobase.IPluginTool) -> None:
+    def display(self) -> None:
         raise NotImplementedError
 
     def _get_setting(self, key: str) -> mobase.MoVariant:
@@ -109,7 +118,7 @@ class Exporter(mobase.IPluginTool):
         return paths
 
 
-class FolderExporter(Exporter):
+class FolderExporter(ExporterTool):
     def name(self) -> str:
         return f"{super().name()} Folder"
 
@@ -118,9 +127,6 @@ class FolderExporter(Exporter):
 
     def description(self) -> str:
         return "Export active mod files to a folder"
-
-    def master(self) -> str:
-        return super().name()
 
     def display(self) -> None:
         parent = self._parentWidget()
@@ -164,7 +170,7 @@ class ZipCompressionMethod(enum.IntEnum):
     ZIP_LZMA = zipfile.ZIP_LZMA
 
 
-class ZipExporter(Exporter):
+class ZipExporter(ExporterTool):
     def name(self) -> str:
         return f"{super().name()} Zip"
 
@@ -173,9 +179,6 @@ class ZipExporter(Exporter):
 
     def description(self) -> str:
         return "Export active mod files to a zip file"
-
-    def master(self) -> str:
-        return super().name()
 
     def settings(self) -> Sequence[mobase.PluginSetting]:
         return [
@@ -233,7 +236,7 @@ class ZipExporter(Exporter):
         os.startfile(target)
 
 
-class MarkdownExporter(Exporter):
+class MarkdownExporter(ExporterTool):
     def name(self) -> str:
         return f"{super().name()} Markdown"
 
@@ -242,9 +245,6 @@ class MarkdownExporter(Exporter):
 
     def description(self) -> str:
         return "Export active mod list as a markdown list"
-
-    def master(self) -> str:
-        return super().name()
 
     def display(self) -> None:
         parent = self._parentWidget()
@@ -279,4 +279,5 @@ class MarkdownExporter(Exporter):
 
 
 def createPlugins() -> list[mobase.IPlugin]:
-    return [FolderExporter(), ZipExporter(), MarkdownExporter()]
+    # ExporterBase is not shown in Exporter/... Tools menu, but parent plugin for the settings.
+    return [ExporterBase(), FolderExporter(), ZipExporter(), MarkdownExporter()]
