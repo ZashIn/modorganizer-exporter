@@ -53,8 +53,7 @@ class ExporterTool(ExporterBase, mobase.IPluginTool):
         return self.description()
 
     @abstractmethod
-    def display(self) -> None:
-        raise NotImplementedError
+    def display(self) -> None: ...
 
     def _get_setting(self, key: str) -> mobase.MoVariant:
         return self._organizer.pluginSetting(self.name(), key)
