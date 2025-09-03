@@ -12,8 +12,17 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from .utils import copy_signature
+
 
 class OptionsFileDialog(QFileDialog):
+    option_widgets: list[QWidget]
+
+    @copy_signature(QFileDialog.__init__)
+    def __init__(self, *args, **kwargs):  # type: ignore
+        super().__init__(*args, **kwargs)  # type: ignore
+        self.option_widgets = []
+
     def with_widgets(self, *widgets: QWidget) -> Self:
         self.add_widgets(*widgets)
         return self
@@ -24,6 +33,7 @@ class OptionsFileDialog(QFileDialog):
         assert layout is not None
         for widget in widgets:
             layout.addWidget(widget)
+            self.option_widgets.append(widget)
 
     def getDirectory(
         self,
@@ -95,6 +105,14 @@ class ExportDialog:
             widgets.append(widget)
             self.file_dialog.accepted.connect(accept_callback)  # type: ignore
         self.file_dialog.add_widgets(*widgets)
+
+    @copy_signature(OptionsFileDialog.getDirectory)
+    def getDirectory(self, *args, **kwargs):  # type: ignore
+        return self.file_dialog.getDirectory(*args, **kwargs)  # type: ignore
+
+    @copy_signature(OptionsFileDialog.getFile)
+    def getFile(self, *args, **kwargs):  # type: ignore
+        return self.file_dialog.getFile(*args, **kwargs)  # type: ignore
 
     def _options_widget(self):
         # Options
