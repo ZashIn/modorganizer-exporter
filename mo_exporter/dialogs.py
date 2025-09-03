@@ -72,7 +72,7 @@ class HasSettings(Protocol):
     def set_setting(self, key: str, value: mobase.MoVariant): ...
 
 
-class FolderExportDialog:
+class ExportDialog:
     widgets: list[QWidget]
 
     def __init__(
@@ -82,8 +82,8 @@ class FolderExportDialog:
         self.file_dialog = file_dialog or OptionsFileDialog()
         self.widgets = []
         self.add_widget_callbacks(
-            self._add_options(),
-            self._add_export_type(),
+            self._options_widget(),
+            self._export_type_widget(),
         )
 
     def add_widget_callbacks(
@@ -96,7 +96,7 @@ class FolderExportDialog:
             self.file_dialog.accepted.connect(accept_callback)  # type: ignore
         self.file_dialog.add_widgets(*widgets)
 
-    def _add_options(self):
+    def _options_widget(self):
         # Options
         options_box = QGroupBox("Options")
         # overwrite
@@ -118,7 +118,7 @@ class FolderExportDialog:
 
         return options_box, accept_callback
 
-    def _add_export_type(self):
+    def _export_type_widget(self):
         export_type_box = QGroupBox("Export Type")
         export_type_group = QButtonGroup()
         layout = QVBoxLayout()
