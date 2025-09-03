@@ -598,14 +598,3 @@ class MarkdownToClip(MarkdownExporter):
             QMessageBox.information(
                 parent, self.name(), f"{len(lines)} mod infos copied to clipboard"
             )
-
-
-def createPlugins() -> list[mobase.IPlugin]:
-    # ExporterBase is not shown in Exporter/... Tools menu, but parent plugin for the settings.
-    return [
-        ExporterBase(),
-        FolderExporter(),
-        ZipExporter(),
-        MarkdownExporter(),
-        MarkdownToClip(),
-    ]

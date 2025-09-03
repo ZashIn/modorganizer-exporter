@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "mo-exporter"
+name = "mo_exporter"
 version = "0.1.0"
 description = ""
 authors = ["Zash <zash@fantasymail.de>"]
