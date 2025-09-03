@@ -23,7 +23,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from .dialogs import FolderExportDialog, OptionsFileDialog
+from .dialogs import ExportDialog, OptionsFileDialog
 
 
 class ExporterBase(mobase.IPlugin):
@@ -164,14 +164,14 @@ class FolderExporter(ExporterTool):
             QMessageBox.information(parent, self.name(), "No active mods!")
             return
 
-        optionsFileDialog = FolderExportDialog(
+        export_dialog = ExportDialog(
             self,
             OptionsFileDialog(
                 parent,
                 "Select a folder to export all active mod files into",
             ),
         )
-        target_dir = optionsFileDialog.file_dialog.getDirectory()
+        target_dir = export_dialog.file_dialog.getDirectory()
         if not target_dir:
             return
         target_path = Path(target_dir)
