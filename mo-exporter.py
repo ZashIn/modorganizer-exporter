@@ -198,6 +198,14 @@ class FolderExporter(ExporterTool):
     def description(self) -> str:
         return "Export active mod files to a folder"
 
+    def settings(self) -> Sequence[mobase.PluginSetting]:
+        return [
+            *super().settings(),
+            mobase.PluginSetting(
+                "export-overwrite", "Export overwrite files, too", False
+            ),
+        ]
+
     def display(self) -> None:
         parent = self._parentWidget()
         active_mods = list(self._active_mods())
@@ -210,16 +218,21 @@ class FolderExporter(ExporterTool):
             "Select a folder to export all active mod files into",
         )
         include_overwrite = QCheckBox("Include Overwrite")
-        include_overwrite.setChecked(False)
+        export_overwrite_setting = self._get_setting("export-overwrite")
+        if not isinstance(export_overwrite_setting, bool):
+            export_overwrite_setting = False
+        include_overwrite.setChecked(export_overwrite_setting)
         optionsFileDialog.add_widgets(include_overwrite)
         target_dir = optionsFileDialog.getDirectory()
 
         if not target_dir:
             return
+        export_overwrite_setting = include_overwrite.isChecked()
+        self._set_setting("export-overwrite", export_overwrite_setting)
         target_path = Path(target_dir)
 
         # Collect mod paths
-        if include_overwrite.isChecked():
+        if export_overwrite_setting:
             active_mods.append(self._organizer.modList().getMod("overwrite"))
         paths = self._collect_mod_file_paths(active_mods, parent)
         if not paths:
@@ -261,6 +274,7 @@ class ZipExporter(ExporterTool):
 
     def settings(self) -> Sequence[mobase.PluginSetting]:
         return [
+            *super().settings(),
             mobase.PluginSetting(
                 "compression",
                 f"Compression for the .zip file:\n{'\n'.join(e.name for e in ZipCompressionMethod)}",
@@ -268,6 +282,9 @@ class ZipExporter(ExporterTool):
             ),
             mobase.PluginSetting(
                 "compression-level", "Compression level (0-9, see python ZipFile)", -1
+            ),
+            mobase.PluginSetting(
+                "export-overwrite", "Export overwrite files, too", False
             ),
         ]
 
@@ -309,7 +326,10 @@ class ZipExporter(ExporterTool):
         # Options
         options_box = QGroupBox("Options")
         include_overwrite = QCheckBox("Include Overwrite")
-        include_overwrite.setChecked(False)
+        export_overwrite_setting = self._get_setting("export-overwrite")
+        if not isinstance(export_overwrite_setting, bool):
+            export_overwrite_setting = False
+        include_overwrite.setChecked(export_overwrite_setting)
         layout = QVBoxLayout()
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         layout.addWidget(include_overwrite)
@@ -346,13 +366,15 @@ class ZipExporter(ExporterTool):
         target, _ = optionsFileDialog.getFile(filter="*.zip")
         if not target:
             return
-        checked = compression_group.checkedButton()
-        assert checked is not None
-        self._compression = ZipCompressionMethod[checked.text()]
+        export_overwrite_setting = include_overwrite.isChecked()
+        self._set_setting("export-overwrite", export_overwrite_setting)
+        compression_button = compression_group.checkedButton()
+        assert compression_button is not None
+        self._compression = ZipCompressionMethod[compression_button.text()]
         self._compression_level = compression_level.value()
 
         # Collect mod paths
-        if include_overwrite.isChecked():
+        if export_overwrite_setting:
             active_mods.append(self._organizer.modList().getMod("overwrite"))
         paths = self._collect_mod_file_paths(active_mods, parent)
         if not paths:
