@@ -5,11 +5,48 @@ import zipfile
 from abc import abstractmethod
 from collections.abc import Collection, Iterable, Sequence
 from pathlib import Path
+from typing import Self
 
 import mobase
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QIcon, QGuiApplication
-from PyQt6.QtWidgets import QFileDialog, QMessageBox, QProgressDialog, QWidget
+from PyQt6.QtCore import QDir, Qt
+from PyQt6.QtGui import QGuiApplication, QIcon
+from PyQt6.QtWidgets import (
+    QCheckBox,
+    QFileDialog,
+    QMessageBox,
+    QProgressDialog,
+    QWidget,
+)
+
+
+class OptionsFileDialog(QFileDialog):
+    def with_widgets(self, *widgets: QWidget) -> Self:
+        self.add_widgets(*widgets)
+        return self
+
+    def add_widgets(self, *widgets: QWidget):
+        self.setOption(QFileDialog.Option.DontUseNativeDialog, True)
+        layout = self.layout()
+        assert layout is not None
+        for widget in widgets:
+            layout.addWidget(widget)
+
+    def getDirectory(
+        self,
+        caption: str | None = None,
+        directory: str | None = None,
+        options: QFileDialog.Option = QFileDialog.Option.ShowDirsOnly
+        | QFileDialog.Option.DontResolveSymlinks,
+    ) -> str:
+        if caption:
+            self.setWindowTitle(caption)
+        self.setFileMode(QFileDialog.FileMode.Directory)
+        self.setFilter(QDir.Filter.Dirs)
+        self.setDirectory(directory)
+        self.setOptions(options)
+        if not self.exec():
+            return ""
+        return self.selectedFiles()[0]
 
 
 class ExporterBase(mobase.IPlugin):
@@ -133,18 +170,27 @@ class FolderExporter(ExporterTool):
         if not active_mods:
             QMessageBox.information(parent, self.name(), "No active mods!")
             return
-        target_dir = QFileDialog.getExistingDirectory(
+
+        optionsFileDialog = OptionsFileDialog(
             parent,
             "Select a folder to export all active mod files into",
-            options=QFileDialog.Option.ShowDirsOnly,
         )
+        include_overwrite = QCheckBox("Include Overwrite")
+        include_overwrite.setChecked(False)
+        optionsFileDialog.add_widgets(include_overwrite)
+        target_dir = optionsFileDialog.getDirectory()
+
         if not target_dir:
             return
         target_path = Path(target_dir)
+
         # Collect mod paths
+        if include_overwrite.isChecked():
+            active_mods.append(self._organizer.modList().getMod("overwrite"))
         paths = self._collect_mod_file_paths(active_mods, parent)
         if not paths:
             return
+
         # Copy mod files to target dir
         progress = QProgressDialog("Exporting mods...", "Abort", 0, len(paths), parent)
         progress.setWindowModality(Qt.WindowModality.WindowModal)
