@@ -5,7 +5,7 @@ import zipfile
 from abc import abstractmethod
 from collections.abc import Collection, Iterable, Mapping, Sequence
 from pathlib import Path
-from typing import Self
+from typing import Any, Callable, Protocol, Self
 
 import mobase
 from PyQt6.QtCore import QDir, Qt
@@ -123,10 +123,10 @@ class ExporterTool(ExporterBase, mobase.IPluginTool):
     @abstractmethod
     def display(self) -> None: ...
 
-    def _get_setting(self, key: str) -> mobase.MoVariant:
+    def get_setting(self, key: str) -> mobase.MoVariant:
         return self._organizer.pluginSetting(self.name(), key)
 
-    def _set_setting(self, key: str, value: mobase.MoVariant):
+    def set_setting(self, key: str, value: mobase.MoVariant):
         self._organizer.setPluginSetting(self.name(), key, value)
 
     def _active_mod_names(self, reverse: bool = False) -> Iterable[str]:
@@ -188,6 +188,87 @@ class ExporterTool(ExporterBase, mobase.IPluginTool):
         return paths
 
 
+class HasSettings(Protocol):
+    def get_setting(self, key: str) -> mobase.MoVariant: ...
+    def set_setting(self, key: str, value: mobase.MoVariant): ...
+
+
+class FolderExportDialog:
+    widgets: list[QWidget]
+
+    def __init__(
+        self, settings_plugin: HasSettings, file_dialog: OptionsFileDialog | None
+    ) -> None:
+        self.settings_plugin = settings_plugin
+        self.file_dialog = file_dialog or OptionsFileDialog()
+        self.widgets = []
+        self.add_widget_callbacks(
+            self._add_options(),
+            self._add_export_type(),
+        )
+
+    def add_widget_callbacks(
+        self, *widget_callbacks: tuple[QWidget, Callable[..., Any]]
+    ):
+        widgets: list[QWidget] = []
+        for widget, accept_callback in widget_callbacks:
+            self.widgets.append(widget)
+            widgets.append(widget)
+            self.file_dialog.accepted.connect(accept_callback)  # type: ignore
+        self.file_dialog.add_widgets(*widgets)
+
+    def _add_options(self):
+        # Options
+        options_box = QGroupBox("Options")
+        # overwrite
+        include_overwrite = QCheckBox("Include Overwrite")
+        export_overwrite_setting = self.settings_plugin.get_setting("export-overwrite")
+        if not isinstance(export_overwrite_setting, bool):
+            export_overwrite_setting = False
+        include_overwrite.setChecked(export_overwrite_setting)
+        layout = QVBoxLayout()
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        layout.addWidget(include_overwrite)
+        options_box.setLayout(layout)
+
+        def accept_callback():
+            export_overwrite_setting = include_overwrite.isChecked()
+            self.settings_plugin.set_setting(
+                "export-overwrite", export_overwrite_setting
+            )
+
+        return options_box, accept_callback
+
+    def _add_export_type(self):
+        export_type_box = QGroupBox("Export Type")
+        export_type_group = QButtonGroup()
+        layout = QVBoxLayout()
+        mod_folder_button = QRadioButton("Export mod folders")
+        mod_folder_button.setToolTip("Export each mod as a separate folder")
+        export_type_group.addButton(mod_folder_button)
+        mod_content_button = QRadioButton("Export mod contents")
+        mod_content_button.setToolTip(
+            "Export the contents of each mod together (~virtual file tree)"
+        )
+        export_type_group.addButton(mod_content_button)
+        if self.settings_plugin.get_setting("export-type") == "mod-folder":
+            mod_folder_button.setChecked(True)
+        else:
+            mod_content_button.setChecked(True)
+        for button in export_type_group.buttons():
+            layout.addWidget(button)
+        export_type_box.setLayout(layout)
+
+        def accept_callback():
+            export_contents = mod_content_button.isChecked()
+            self.settings_plugin.set_setting(
+                "export-type",
+                "mod-content" if export_contents else "mod-folder",
+            )
+
+        return export_type_box, accept_callback
+
+
 class FolderExporter(ExporterTool):
     def name(self) -> str:
         return f"{self._base_name} Folder"
@@ -218,61 +299,25 @@ class FolderExporter(ExporterTool):
             QMessageBox.information(parent, self.name(), "No active mods!")
             return
 
-        optionsFileDialog = OptionsFileDialog(
-            parent,
-            "Select a folder to export all active mod files into",
+        optionsFileDialog = FolderExportDialog(
+            self,
+            OptionsFileDialog(
+                parent,
+                "Select a folder to export all active mod files into",
+            ),
         )
-        # Options
-        options_box = QGroupBox("Options")
-        # overwrite
-        include_overwrite = QCheckBox("Include Overwrite")
-        export_overwrite_setting = self._get_setting("export-overwrite")
-        if not isinstance(export_overwrite_setting, bool):
-            export_overwrite_setting = False
-        include_overwrite.setChecked(export_overwrite_setting)
-        layout = QVBoxLayout()
-        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        layout.addWidget(include_overwrite)
-        options_box.setLayout(layout)
-
-        # export type
-        export_type_box = QGroupBox("Export Type")
-        export_type_group = QButtonGroup()
-        layout = QVBoxLayout()
-        mod_folder_button = QRadioButton("Export mod folders")
-        mod_folder_button.setToolTip("Export each mod as a separate folder")
-        export_type_group.addButton(mod_folder_button)
-        mod_content_button = QRadioButton("Export mod contents")
-        mod_content_button.setToolTip(
-            "Export the contents of each mod together (~virtual file tree)"
-        )
-        export_type_group.addButton(mod_content_button)
-        if self._get_setting("export-type") == "mod-folder":
-            mod_folder_button.setChecked(True)
-        else:
-            mod_content_button.setChecked(True)
-        for button in export_type_group.buttons():
-            layout.addWidget(button)
-        export_type_box.setLayout(layout)
-
-        # Get options from dialog
-        optionsFileDialog.add_widgets(options_box, export_type_box)
-        target_dir = optionsFileDialog.getDirectory()
+        target_dir = optionsFileDialog.file_dialog.getDirectory()
         if not target_dir:
             return
         target_path = Path(target_dir)
-        export_overwrite_setting = include_overwrite.isChecked()
-        self._set_setting("export-overwrite", export_overwrite_setting)
-        export_contents = mod_content_button.isChecked()
-        self._set_setting(
-            "export-type",
-            "mod-content" if export_contents else "mod-folder",
-        )
 
-        if export_overwrite_setting:
+        if self.get_setting("export-overwrite") is True:
             active_mods.append(self._organizer.modList().getMod("overwrite"))
         self.export_mods_to_folder(
-            active_mods, target_path, mod_content_button.isChecked(), parent
+            active_mods,
+            target_path,
+            self.get_setting("export-type") == "mod-content",
+            parent,
         )
 
     def export_mods_to_folder(
@@ -351,24 +396,24 @@ class ZipExporter(ExporterTool):
     @property
     def _compression(self) -> ZipCompressionMethod:
         try:
-            return ZipCompressionMethod[str(self._get_setting("compression"))]
+            return ZipCompressionMethod[str(self.get_setting("compression"))]
         except KeyError:
             return ZipCompressionMethod.ZIP_DEFLATED
 
     @_compression.setter
     def _compression(self, value: ZipCompressionMethod):
-        self._set_setting("compression", value.name)
+        self.set_setting("compression", value.name)
 
     @property
     def _compression_level(self) -> int | None:
-        setting = self._get_setting("compression-level")
+        setting = self.get_setting("compression-level")
         if isinstance(setting, int) and setting > 0:
             return setting
         return None
 
     @_compression_level.setter
     def _compression_level(self, value: int):
-        self._set_setting("compression-level", value)
+        self.set_setting("compression-level", value)
 
     def display(self) -> None:
         parent = self._parentWidget()
@@ -386,7 +431,7 @@ class ZipExporter(ExporterTool):
         # Options
         options_box = QGroupBox("Options")
         include_overwrite = QCheckBox("Include Overwrite")
-        export_overwrite_setting = self._get_setting("export-overwrite")
+        export_overwrite_setting = self.get_setting("export-overwrite")
         if not isinstance(export_overwrite_setting, bool):
             export_overwrite_setting = False
         include_overwrite.setChecked(export_overwrite_setting)
@@ -427,7 +472,7 @@ class ZipExporter(ExporterTool):
         if not target:
             return
         export_overwrite_setting = include_overwrite.isChecked()
-        self._set_setting("export-overwrite", export_overwrite_setting)
+        self.set_setting("export-overwrite", export_overwrite_setting)
         compression_button = compression_group.checkedButton()
         assert compression_button is not None
         self._compression = ZipCompressionMethod[compression_button.text()]
