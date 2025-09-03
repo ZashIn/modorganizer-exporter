@@ -3,7 +3,7 @@ import os
 import shutil
 import zipfile
 from abc import abstractmethod
-from collections.abc import Collection, Iterable, Sequence
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Self
 
@@ -143,7 +143,7 @@ class ExporterTool(ExporterBase, mobase.IPluginTool):
         for mod in self._active_mod_names(reverse):
             yield mods_path / mod
 
-    def _active_mods(self, reverse: bool = False) -> Iterable[mobase.IModInterface]:
+    def active_mods(self, reverse: bool = False) -> Iterable[mobase.IModInterface]:
         """Yield active mods in MOs load order."""
         modlist = self._organizer.modList()
         for mod in self._active_mod_names(reverse):
@@ -208,7 +208,7 @@ class FolderExporter(ExporterTool):
 
     def display(self) -> None:
         parent = self._parentWidget()
-        active_mods = list(self._active_mods())
+        active_mods = list(self.active_mods())
         if not active_mods:
             QMessageBox.information(parent, self.name(), "No active mods!")
             return
@@ -234,7 +234,15 @@ class FolderExporter(ExporterTool):
         # Collect mod paths
         if export_overwrite_setting:
             active_mods.append(self._organizer.modList().getMod("overwrite"))
-        paths = self._collect_mod_file_paths(active_mods, parent)
+        return self.export_mod_files_to_folder(active_mods, target_path, parent)
+
+    def export_mod_files_to_folder(
+        self,
+        mods: Collection[mobase.IModInterface],
+        target_path: Path | str,
+        parent: QWidget | None = None,
+    ):
+        paths = self._collect_mod_file_paths(mods, parent)
         if not paths:
             return
 
@@ -312,7 +320,7 @@ class ZipExporter(ExporterTool):
 
     def display(self) -> None:
         parent = self._parentWidget()
-        active_mods = list(self._active_mods())
+        active_mods = list(self.active_mods())
         if not active_mods:
             QMessageBox.information(parent, self.name(), "No active mos!")
             return
@@ -376,11 +384,22 @@ class ZipExporter(ExporterTool):
         # Collect mod paths
         if export_overwrite_setting:
             active_mods.append(self._organizer.modList().getMod("overwrite"))
-        paths = self._collect_mod_file_paths(active_mods, parent)
+        return self.export_mod_files_as_zip(parent, active_mods, target)
+
+    def export_mod_files_as_zip(
+        self,
+        parent: QWidget,
+        mods: Collection[mobase.IModInterface],
+        target: Path | str,
+    ):
+        paths = self._collect_mod_file_paths(mods, parent)
         if not paths:
             return
+        self.export_as_zip(parent, target, paths)
 
-        # Store mod files in target zip
+    def export_as_zip(
+        self, parent: QWidget, target: Path | str, paths: Mapping[Path, Path]
+    ):
         progress = QProgressDialog("Exporting mods...", "Abort", 0, len(paths), parent)
         progress.setWindowModality(Qt.WindowModality.WindowModal)
         with zipfile.ZipFile(
@@ -407,7 +426,7 @@ class MarkdownExporter(ExporterTool):
 
     def display(self) -> None:
         parent = self._parentWidget()
-        active_mods = self._active_mods()
+        active_mods = self.active_mods()
         if not active_mods:
             QMessageBox.information(parent, self.name(), "No active mods!")
             return
@@ -418,10 +437,15 @@ class MarkdownExporter(ExporterTool):
         )
         if not target:
             return
-        with open(target, "w") as file:
-            file.writelines(self._markdown_modlist(active_mods))
+        self.write_markdown_modlist_to_file(active_mods, target)
 
-    def _markdown_modlist(self, mods: Iterable[mobase.IModInterface]) -> Iterable[str]:
+    def write_markdown_modlist_to_file(
+        self, mods: Iterable[mobase.IModInterface], target: Path | str
+    ):
+        with open(target, "w") as file:
+            file.writelines(self.markdown_modlist(mods))
+
+    def markdown_modlist(self, mods: Iterable[mobase.IModInterface]) -> Iterable[str]:
         """
         Yields:
             Markdown line: `- [mod name](mod url) v1.2.3` (+ newline)
@@ -457,17 +481,26 @@ class MarkdownToClip(MarkdownExporter):
 
     def display(self) -> None:
         parent = self._parentWidget()
-        active_mods = self._active_mods()
-        if not active_mods:
+        mods = self.active_mods()
+        if not mods:
             QMessageBox.information(parent, self.name(), "No active mods!")
             return
+        self.copy_markdown_modlist_to_clip(mods, parent=parent)
+
+    def copy_markdown_modlist_to_clip(
+        self,
+        mods: Iterable[mobase.IModInterface],
+        show_info: bool = True,
+        parent: QWidget | None = None,
+    ):
         clipboard = QGuiApplication.clipboard()
         assert clipboard is not None
-        lines = list(self._markdown_modlist(active_mods))
+        lines = list(self.markdown_modlist(mods))
         clipboard.setText("".join(lines))
-        QMessageBox.information(
-            parent, self.name(), f"{len(lines)} mod infos copied to clipboard"
-        )
+        if show_info:
+            QMessageBox.information(
+                parent, self.name(), f"{len(lines)} mod infos copied to clipboard"
+            )
 
 
 def createPlugins() -> list[mobase.IPlugin]:
