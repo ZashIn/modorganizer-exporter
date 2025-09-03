@@ -38,15 +38,39 @@ class OptionsFileDialog(QFileDialog):
         options: QFileDialog.Option = QFileDialog.Option.ShowDirsOnly
         | QFileDialog.Option.DontResolveSymlinks,
     ) -> str:
-        if caption:
-            self.setWindowTitle(caption)
         self.setFileMode(QFileDialog.FileMode.Directory)
         self.setFilter(QDir.Filter.Dirs)
-        self.setDirectory(directory)
+        if caption:
+            self.setWindowTitle(caption)
+        if directory:
+            self.setDirectory(directory)
         self.setOptions(options)
         if not self.exec():
             return ""
         return self.selectedFiles()[0]
+
+    def getFile(
+        self,
+        caption: str | None = None,
+        directory: str | None = None,
+        filter: str | None = None,
+        initialFilter: str | None = None,
+        options: QFileDialog.Option | None = None,
+    ) -> tuple[str, str]:
+        self.setFileMode(QFileDialog.FileMode.AnyFile)
+        if caption:
+            self.setWindowTitle(caption)
+        if directory:
+            self.setDirectory(directory)
+        if filter:
+            self.setNameFilter(filter)
+        if initialFilter:
+            self.selectNameFilter(initialFilter)
+        if options:
+            self.setOptions(options)
+        if not self.exec():
+            return "", self.selectedNameFilter()
+        return self.selectedFiles()[0], self.selectedNameFilter()
 
 
 class ExporterBase(mobase.IPlugin):
@@ -257,15 +281,26 @@ class ZipExporter(ExporterTool):
         if not active_mods:
             QMessageBox.information(parent, self.name(), "No active mos!")
             return
-        target, _ = QFileDialog.getSaveFileName(
-            parent, "Save zip file with all active mods files", filter="*.zip"
+
+        # File dialog
+        optionsFileDialog = OptionsFileDialog(
+            parent,
+            "Save zip file with all active mods files",
         )
+        include_overwrite = QCheckBox("Include Overwrite")
+        include_overwrite.setChecked(False)
+        optionsFileDialog.add_widgets(include_overwrite)
+        target, _ = optionsFileDialog.getFile(filter="*.zip")
         if not target:
             return
+
         # Collect mod paths
+        if include_overwrite.isChecked():
+            active_mods.append(self._organizer.modList().getMod("overwrite"))
         paths = self._collect_mod_file_paths(active_mods, parent)
         if not paths:
             return
+
         # Store mod files in target zip
         progress = QProgressDialog("Exporting mods...", "Abort", 0, len(paths), parent)
         progress.setWindowModality(Qt.WindowModality.WindowModal)
