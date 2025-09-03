@@ -204,6 +204,11 @@ class FolderExporter(ExporterTool):
             mobase.PluginSetting(
                 "export-overwrite", "Export overwrite files, too", False
             ),
+            mobase.PluginSetting(
+                "export-type",
+                "How to export the mods: mod-folder or mod-content",
+                "mod-content",
+            ),
         ]
 
     def display(self) -> None:
@@ -217,32 +222,79 @@ class FolderExporter(ExporterTool):
             parent,
             "Select a folder to export all active mod files into",
         )
+        # Options
+        options_box = QGroupBox("Options")
+        # overwrite
         include_overwrite = QCheckBox("Include Overwrite")
         export_overwrite_setting = self._get_setting("export-overwrite")
         if not isinstance(export_overwrite_setting, bool):
             export_overwrite_setting = False
         include_overwrite.setChecked(export_overwrite_setting)
-        optionsFileDialog.add_widgets(include_overwrite)
-        target_dir = optionsFileDialog.getDirectory()
+        layout = QVBoxLayout()
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        layout.addWidget(include_overwrite)
+        options_box.setLayout(layout)
 
+        # export type
+        export_type_box = QGroupBox("Export Type")
+        export_type_group = QButtonGroup()
+        layout = QVBoxLayout()
+        mod_folder_button = QRadioButton("Export mod folders")
+        mod_folder_button.setToolTip("Export each mod as a separate folder")
+        export_type_group.addButton(mod_folder_button)
+        mod_content_button = QRadioButton("Export mod contents")
+        mod_content_button.setToolTip(
+            "Export the contents of each mod together (~virtual file tree)"
+        )
+        export_type_group.addButton(mod_content_button)
+        if self._get_setting("export-type") == "mod-folder":
+            mod_folder_button.setChecked(True)
+        else:
+            mod_content_button.setChecked(True)
+        for button in export_type_group.buttons():
+            layout.addWidget(button)
+        export_type_box.setLayout(layout)
+
+        # Get options from dialog
+        optionsFileDialog.add_widgets(options_box, export_type_box)
+        target_dir = optionsFileDialog.getDirectory()
         if not target_dir:
             return
+        target_path = Path(target_dir)
         export_overwrite_setting = include_overwrite.isChecked()
         self._set_setting("export-overwrite", export_overwrite_setting)
-        target_path = Path(target_dir)
+        export_contents = mod_content_button.isChecked()
+        self._set_setting(
+            "export-type",
+            "mod-content" if export_contents else "mod-folder",
+        )
 
-        # Collect mod paths
         if export_overwrite_setting:
             active_mods.append(self._organizer.modList().getMod("overwrite"))
-        return self.export_mod_files_to_folder(active_mods, target_path, parent)
+        self.export_mods_to_folder(
+            active_mods, target_path, mod_content_button.isChecked(), parent
+        )
 
-    def export_mod_files_to_folder(
+    def export_mods_to_folder(
         self,
         mods: Collection[mobase.IModInterface],
         target_path: Path | str,
+        contents: bool = True,
         parent: QWidget | None = None,
     ):
-        paths = self._collect_mod_file_paths(mods, parent)
+        """Export mods to a folder
+
+        Args:
+            mods: List of mods.
+            target_path: Target folder.
+            contents (optional): True  = All mod contents will be exported/merged together (~virtual file tree).
+                                 False = Each mod folder will be exported separately.
+            parent (optional): Parent widget.
+        """
+        if contents:
+            paths = self._collect_mod_file_paths(mods, parent)
+        else:
+            paths = {Path(mod.name()): Path(mod.absolutePath()) for mod in mods}
         if not paths:
             return
 
@@ -344,8 +396,8 @@ class ZipExporter(ExporterTool):
         options_box.setLayout(layout)
 
         # Zip compression
-        compression_group = QButtonGroup()
         compression_box = QGroupBox("Compression")
+        compression_group = QButtonGroup()
         layout = QVBoxLayout()
         hlayout = QHBoxLayout()
         default_compression = self._compression
