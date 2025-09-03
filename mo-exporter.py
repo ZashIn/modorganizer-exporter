@@ -11,10 +11,17 @@ import mobase
 from PyQt6.QtCore import QDir, Qt
 from PyQt6.QtGui import QGuiApplication, QIcon
 from PyQt6.QtWidgets import (
+    QButtonGroup,
     QCheckBox,
     QFileDialog,
+    QGroupBox,
+    QHBoxLayout,
     QMessageBox,
     QProgressDialog,
+    QRadioButton,
+    QSizePolicy,
+    QSpinBox,
+    QVBoxLayout,
     QWidget,
 )
 
@@ -118,6 +125,9 @@ class ExporterTool(ExporterBase, mobase.IPluginTool):
 
     def _get_setting(self, key: str) -> mobase.MoVariant:
         return self._organizer.pluginSetting(self.name(), key)
+
+    def _set_setting(self, key: str, value: mobase.MoVariant):
+        self._organizer.setPluginSetting(self.name(), key, value)
 
     def _active_mod_names(self, reverse: bool = False) -> Iterable[str]:
         """Yield active mods in MOs load order."""
@@ -268,12 +278,20 @@ class ZipExporter(ExporterTool):
         except KeyError:
             return ZipCompressionMethod.ZIP_DEFLATED
 
+    @_compression.setter
+    def _compression(self, value: ZipCompressionMethod):
+        self._set_setting("compression", value.name)
+
     @property
     def _compression_level(self) -> int | None:
         setting = self._get_setting("compression-level")
         if isinstance(setting, int) and setting > 0:
             return setting
         return None
+
+    @_compression_level.setter
+    def _compression_level(self, value: int):
+        self._set_setting("compression-level", value)
 
     def display(self) -> None:
         parent = self._parentWidget()
@@ -287,12 +305,51 @@ class ZipExporter(ExporterTool):
             parent,
             "Save zip file with all active mods files",
         )
+
+        # Options
+        options_box = QGroupBox("Options")
         include_overwrite = QCheckBox("Include Overwrite")
         include_overwrite.setChecked(False)
-        optionsFileDialog.add_widgets(include_overwrite)
+        layout = QVBoxLayout()
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        layout.addWidget(include_overwrite)
+        options_box.setLayout(layout)
+
+        # Zip compression
+        compression_group = QButtonGroup()
+        compression_box = QGroupBox("Compression")
+        layout = QVBoxLayout()
+        hlayout = QHBoxLayout()
+        default_compression = self._compression
+        for method in ZipCompressionMethod:
+            button = QRadioButton(method.name)
+            if method is default_compression:
+                button.setChecked(True)
+            compression_group.addButton(button)
+            hlayout.addWidget(button)
+        layout.addLayout(hlayout)
+
+        compression_level = QSpinBox()
+        compression_level.setPrefix("level: ")
+        compression_level.setRange(-1, 9)
+        compression_level.setValue(self._compression_level or -1)
+        compression_level.setWrapping(True)
+        compression_level.setSizePolicy(
+            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Minimum
+        )
+        hlayout = QHBoxLayout()
+        hlayout.addWidget(compression_level, alignment=Qt.AlignmentFlag.AlignLeft)
+        layout.addLayout(hlayout)
+        compression_box.setLayout(layout)
+
+        optionsFileDialog.add_widgets(options_box, compression_box)
         target, _ = optionsFileDialog.getFile(filter="*.zip")
         if not target:
             return
+        checked = compression_group.checkedButton()
+        assert checked is not None
+        self._compression = ZipCompressionMethod[checked.text()]
+        self._compression_level = compression_level.value()
 
         # Collect mod paths
         if include_overwrite.isChecked():
