@@ -171,7 +171,7 @@ class FolderExporter(ExporterTool):
                 "Select a folder to export all active mod files into",
             ),
         )
-        target_dir = export_dialog.file_dialog.getDirectory()
+        target_dir = export_dialog.getDirectory()
         if not target_dir:
             return
         target_path = Path(target_dir)
