@@ -297,6 +297,8 @@ class ZipExporter(ExporterTool):
         )
         # Add zip compression widget, bottom left, spanning 2 columns
         export_dialog.add_widget_callbacks(self._get_compression_widget())
+        if isinstance(layout := export_dialog.file_dialog.layout(), QGridLayout):
+            layout.addWidget(export_dialog.widgets[-1], layout.rowCount(), 0, 1, 2)
         target, _ = export_dialog.getFile(filter="*.zip")
         if not target:
             return
