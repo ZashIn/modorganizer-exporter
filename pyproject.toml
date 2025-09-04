@@ -1,7 +1,7 @@
 [project]
 name = "mo_exporter"
 version = "0.1.0"
-description = ""
+description = "Export tools for Mod Organizer 2"
 authors = [{ name = "Zash", email = "zash@fantasymail.de" }]
 readme = "README.md"
 requires-python = ">=3.12,<4.0"
