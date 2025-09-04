@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
     QProgressDialog,
     QSizePolicy,
     QSpinBox,
+    QVBoxLayout,
     QWidget,
 )
 
@@ -294,10 +295,14 @@ class ZipExporter(ExporterTool):
                 "Save zip file with all active mods files",
             ),
         )
-        # Add zip compression widget, bottom left, spanning 2 columns
+        # Add zip compression widget, next to last layout (keeping button at edge)
         export_dialog.add_widget_callbacks(self._get_compression_widget())
-        if isinstance(layout := export_dialog.file_dialog.layout(), QGridLayout):
-            layout.addWidget(export_dialog.widgets[-1], layout.rowCount(), 0, 1, 2)
+        layout = export_dialog.file_dialog.layout()
+        assert isinstance(layout, QGridLayout)
+        sub_layout = QHBoxLayout()
+        sub_layout.addWidget(export_dialog.widgets[-2])
+        sub_layout.addWidget(export_dialog.widgets[-1])
+        layout.addItem(sub_layout, layout.rowCount() - 1, 1, 2)
         target, _ = export_dialog.getFile(filter="*.zip")
         if not target:
             return
@@ -309,7 +314,7 @@ class ZipExporter(ExporterTool):
 
     def _get_compression_widget(self):
         compression_group_box = QGroupBox("Compression")
-        layout = QHBoxLayout()
+        layout = QVBoxLayout()
         compression_combo_box = QComboBox()
         compression_combo_box.addItems(method.name for method in ZipCompressionMethod)  # type: ignore
         compression_combo_box.setCurrentText(self._compression.name)
