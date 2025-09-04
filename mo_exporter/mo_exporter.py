@@ -7,7 +7,7 @@ from collections.abc import Collection, Iterable, Mapping, Sequence
 from pathlib import Path
 
 import mobase
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, qCritical
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
     QComboBox,
@@ -260,7 +260,8 @@ class ZipExporter(ExporterTool):
     def _compression(self) -> ZipCompressionMethod:
         try:
             return ZipCompressionMethod[str(self.get_setting("compression"))]
-        except KeyError:
+        except KeyError as e:
+            qCritical(f"Invalid compression setting: {e}")
             return ZipCompressionMethod.ZIP_DEFLATED
 
     @_compression.setter
