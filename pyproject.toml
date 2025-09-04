@@ -11,7 +11,19 @@ pyqt6 = "^6.7.0"
 
 [tool.poetry.group.dev.dependencies]
 mobase-stubs = "^2.5.2"
+ruff = "^0.12.11"
+pyright = "^1.1.405"
+poethepoet = "^0.37.0"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poe.tasks]
+format-imports = "ruff check --select I . --fix"
+format-ruff = "ruff format ."
+format.sequence = ["format-imports", "format-ruff"]
+lint-ruff = "ruff check ."
+lint-ruff-format = "ruff format --check ."
+lint-pyright = "pyright ."
+lint.sequence = ["lint-ruff", "lint-ruff-format", "lint-pyright"]
