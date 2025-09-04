@@ -6,7 +6,7 @@ version = "2.5.2"
 description = "PEP561 stub files for the mobase Python API."
 optional = false
 python-versions = "<4.0,>=3.12"
-groups = ["main"]
+groups = ["dev"]
 files = [
     {file = "mobase_stubs-2.5.2-py3-none-any.whl", hash = "sha256:6a2c1c95494e7dc0d0f51d4f8f178423c0d9904f823f3c44845315bff304b948"},
     {file = "mobase_stubs-2.5.2.tar.gz", hash = "sha256:70c15579828df3bce01746e51fee07176390cdc386facea2b156ea04b3de055c"},
@@ -81,5 +81,5 @@ files = [
 
 [metadata]
 lock-version = "2.1"
-python-versions = "^3.12"
-content-hash = "50c2adfa4290285547a12b518618579eba1c2eca33f469480bd6a95b9de8f5af"
+python-versions = ">=3.12,<4.0"
+content-hash = "24c959c29f1e3391e4400d12957bc91006d33198cc838fd70701333827f54d60"

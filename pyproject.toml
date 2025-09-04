@@ -1,15 +1,16 @@
-[tool.poetry]
+[project]
 name = "mo_exporter"
 version = "0.1.0"
 description = ""
-authors = ["Zash <zash@fantasymail.de>"]
+authors = [{ name = "Zash", email = "zash@fantasymail.de" }]
 readme = "README.md"
+requires-python = ">=3.12,<4.0"
 
 [tool.poetry.dependencies]
-python = "^3.12"
-mobase-stubs = "^2.5.2"
 pyqt6 = "^6.7.0"
 
+[tool.poetry.group.dev.dependencies]
+mobase-stubs = "^2.5.2"
 
 [build-system]
 requires = ["poetry-core"]
