@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from .utils import copy_signature
+from .utils import copy_method_params, copy_signature
 
 
 class OptionsFileDialog(QFileDialog):
@@ -106,11 +106,11 @@ class ExportDialog:
             self.file_dialog.accepted.connect(accept_callback)  # type: ignore
         self.file_dialog.add_widgets(*widgets)
 
-    @copy_signature(OptionsFileDialog.getDirectory)
+    @copy_method_params(OptionsFileDialog.getDirectory)
     def getDirectory(self, *args, **kwargs):  # type: ignore
         return self.file_dialog.getDirectory(*args, **kwargs)  # type: ignore
 
-    @copy_signature(OptionsFileDialog.getFile)
+    @copy_method_params(OptionsFileDialog.getFile)
     def getFile(self, *args, **kwargs):  # type: ignore
         return self.file_dialog.getFile(*args, **kwargs)  # type: ignore
 
