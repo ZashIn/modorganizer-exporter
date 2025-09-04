@@ -45,7 +45,7 @@ class ExporterBase(mobase.IPlugin):
         return self._base_name
 
     def version(self) -> mobase.VersionInfo:
-        return mobase.VersionInfo(0, 1, 0, mobase.ReleaseType.ALPHA)
+        return mobase.VersionInfo(1, 0, 0)
 
     def settings(self) -> Sequence[mobase.PluginSetting]:
         return []
