@@ -284,7 +284,7 @@ class ZipExporter(ExporterTool):
         parent = self._parentWidget()
         active_mods = list(self.active_mods())
         if not active_mods:
-            QMessageBox.information(parent, self.name(), "No active mos!")
+            QMessageBox.information(parent, self.name(), "No active mods!")
             return
 
         # File dialog
