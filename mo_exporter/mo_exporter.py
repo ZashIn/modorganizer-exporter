@@ -11,7 +11,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
     QButtonGroup,
-    QCheckBox,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QMessageBox,
@@ -288,24 +288,25 @@ class ZipExporter(ExporterTool):
             return
 
         # File dialog
-        optionsFileDialog = OptionsFileDialog(
-            parent,
-            "Save zip file with all active mods files",
+        export_dialog = ExportDialog(
+            self,
+            OptionsFileDialog(
+                parent,
+                "Save zip file with all active mods files",
+            ),
         )
+        # Add zip compression widget, bottom left, spanning 2 columns
+        export_dialog.add_widget_callbacks(self._get_compression_widget())
+        target, _ = export_dialog.getFile(filter="*.zip")
+        if not target:
+            return
 
-        # Options
-        options_box = QGroupBox("Options")
-        include_overwrite = QCheckBox("Include Overwrite")
-        export_overwrite_setting = self.get_setting("export-overwrite")
-        if not isinstance(export_overwrite_setting, bool):
-            export_overwrite_setting = False
-        include_overwrite.setChecked(export_overwrite_setting)
-        layout = QVBoxLayout()
-        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        layout.addWidget(include_overwrite)
-        options_box.setLayout(layout)
+        # Collect mod paths
+        if self.get_setting("export-overwrite") is True:
+            active_mods.append(self._organizer.modList().getMod("overwrite"))
+        return self.export_mod_files_as_zip(parent, active_mods, target)
 
-        # Zip compression
+    def _get_compression_widget(self):
         compression_box = QGroupBox("Compression")
         compression_group = QButtonGroup()
         layout = QVBoxLayout()
@@ -332,21 +333,13 @@ class ZipExporter(ExporterTool):
         layout.addLayout(hlayout)
         compression_box.setLayout(layout)
 
-        optionsFileDialog.add_widgets(options_box, compression_box)
-        target, _ = optionsFileDialog.getFile(filter="*.zip")
-        if not target:
-            return
-        export_overwrite_setting = include_overwrite.isChecked()
-        self.set_setting("export-overwrite", export_overwrite_setting)
-        compression_button = compression_group.checkedButton()
-        assert compression_button is not None
-        self._compression = ZipCompressionMethod[compression_button.text()]
-        self._compression_level = compression_level.value()
+        def compression_setting_callback():
+            compression_button = compression_group.checkedButton()
+            assert compression_button is not None
+            self._compression = ZipCompressionMethod[compression_button.text()]
+            self._compression_level = compression_level.value()
 
-        # Collect mod paths
-        if export_overwrite_setting:
-            active_mods.append(self._organizer.modList().getMod("overwrite"))
-        return self.export_mod_files_as_zip(parent, active_mods, target)
+        return compression_box, compression_setting_callback
 
     def export_mod_files_as_zip(
         self,
