@@ -140,10 +140,10 @@ class ExportDialog:
         export_type_box = QGroupBox("Export Type")
         export_type_group = QButtonGroup()
         layout = QVBoxLayout()
-        mod_folder_button = QRadioButton("Export mod folders")
+        mod_folder_button = QRadioButton("Export separate mod folders")
         mod_folder_button.setToolTip("Export each mod as a separate folder")
         export_type_group.addButton(mod_folder_button)
-        mod_content_button = QRadioButton("Export mod contents")
+        mod_content_button = QRadioButton("Export combined mod contents")
         mod_content_button.setToolTip(
             "Export the contents of each mod together (~virtual file tree)"
         )
