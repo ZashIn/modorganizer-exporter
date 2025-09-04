@@ -10,16 +10,14 @@ import mobase
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
-    QButtonGroup,
+    QComboBox,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QMessageBox,
     QProgressDialog,
-    QRadioButton,
     QSizePolicy,
     QSpinBox,
-    QVBoxLayout,
     QWidget,
 )
 
@@ -309,18 +307,15 @@ class ZipExporter(ExporterTool):
         return self.export_mod_files_as_zip(parent, active_mods, target)
 
     def _get_compression_widget(self):
-        compression_box = QGroupBox("Compression")
-        compression_group = QButtonGroup()
-        layout = QVBoxLayout()
-        hlayout = QHBoxLayout()
-        default_compression = self._compression
-        for method in ZipCompressionMethod:
-            button = QRadioButton(method.name)
-            if method is default_compression:
-                button.setChecked(True)
-            compression_group.addButton(button)
-            hlayout.addWidget(button)
-        layout.addLayout(hlayout)
+        compression_group_box = QGroupBox("Compression")
+        layout = QHBoxLayout()
+        compression_combo_box = QComboBox()
+        compression_combo_box.addItems(method.name for method in ZipCompressionMethod)  # type: ignore
+        compression_combo_box.setCurrentText(self._compression.name)
+        compression_combo_box.setSizePolicy(
+            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Minimum
+        )
+        layout.addWidget(compression_combo_box)
 
         compression_level = QSpinBox()
         compression_level.setPrefix("level: ")
@@ -330,18 +325,16 @@ class ZipExporter(ExporterTool):
         compression_level.setSizePolicy(
             QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Minimum
         )
-        hlayout = QHBoxLayout()
-        hlayout.addWidget(compression_level, alignment=Qt.AlignmentFlag.AlignLeft)
-        layout.addLayout(hlayout)
-        compression_box.setLayout(layout)
+        layout.addWidget(compression_level, alignment=Qt.AlignmentFlag.AlignLeft)
+        compression_group_box.setLayout(layout)
 
         def compression_setting_callback():
-            compression_button = compression_group.checkedButton()
-            assert compression_button is not None
-            self._compression = ZipCompressionMethod[compression_button.text()]
+            self._compression = ZipCompressionMethod[
+                compression_combo_box.currentText()
+            ]
             self._compression_level = compression_level.value()
 
-        return compression_box, compression_setting_callback
+        return compression_group_box, compression_setting_callback
 
     def export_mod_files_as_zip(
         self,
