@@ -1,7 +1,7 @@
 import mobase
 
+from .exporter import ExporterBase, FolderExporter, ZipExporter
 from .markdown_exporter import MarkdownExporter, MarkdownToClip
-from .mo_exporter import ExporterBase, FolderExporter, ZipExporter
 
 
 def createPlugins() -> list[mobase.IPlugin]:

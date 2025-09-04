@@ -5,7 +5,7 @@ import mobase
 from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtWidgets import QFileDialog, QMessageBox, QWidget
 
-from .mo_exporter import ExporterTool
+from .exporter import ExporterTool
 
 
 class MarkdownExporter(ExporterTool):
