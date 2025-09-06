@@ -7,7 +7,7 @@ from collections.abc import Collection, Iterable, Mapping, Sequence
 from pathlib import Path
 
 import mobase
-from PyQt6.QtCore import Qt, qCritical
+from PyQt6.QtCore import Qt, qCritical, qInfo
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
     QCheckBox,
@@ -267,6 +267,8 @@ class FolderExporter(ExporterTool):
                     abs_target_path.hardlink_to(absolute)
                 else:
                     shutil.copy(absolute, abs_target_path)
+        else:
+            qInfo(f"{len(mods)} mods exported to {target_path}")
         progress.setValue(len(paths))
         os.startfile(target_path)
 
@@ -398,11 +400,13 @@ class ZipExporter(ExporterTool):
         paths = self._collect_mod_file_paths(mods, parent)
         if not paths:
             return
-        self.export_as_zip(parent, target, paths)
+        if self.export_as_zip(parent, target, paths):
+            qInfo(f"{len(mods)} mods exported to {target}")
 
     def export_as_zip(
         self, parent: QWidget, target: Path | str, paths: Mapping[Path, Path]
     ):
+        completed = True
         progress = QProgressDialog("Exporting mods...", "Abort", 0, len(paths), parent)
         progress.setWindowModality(Qt.WindowModality.WindowModal)
         with zipfile.ZipFile(
@@ -413,5 +417,8 @@ class ZipExporter(ExporterTool):
                     break
                 progress.setValue(i)
                 zip_file.write(absolute, relative)
+            else:
+                completed = False
         progress.setValue(len(paths))
         os.startfile(target)
+        return completed
