@@ -10,6 +10,7 @@ import mobase
 from PyQt6.QtCore import Qt, qCritical
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QGridLayout,
     QGroupBox,
@@ -154,6 +155,11 @@ class FolderExporter(ExporterTool):
                 "How to export the mods: mod-folder or mod-content",
                 "mod-content",
             ),
+            mobase.PluginSetting(
+                "hardlinks",
+                "Use hardlinks instead of file copies",
+                False,
+            ),
         ]
 
     def display(self) -> None:
@@ -170,6 +176,9 @@ class FolderExporter(ExporterTool):
                 "Select a folder to export all active mod files into",
             ),
         )
+        # Add hardlink option
+        hardlink_option = self._add_hardlink_widget(export_dialog)
+
         target_dir = export_dialog.getDirectory()
         if not target_dir:
             return
@@ -182,7 +191,40 @@ class FolderExporter(ExporterTool):
             target_path,
             self.get_setting("export-type") == "mod-content",
             parent,
+            hardlink_option.isEnabled() and hardlink_option.isChecked(),
         )
+
+    def _add_hardlink_widget(self, export_dialog: ExportDialog):
+        options_box = export_dialog.file_dialog.findChild(QGroupBox, "options")
+        layout = options_box.layout()
+        assert layout is not None
+        hardlink_option = QCheckBox("Use Hardlinks")
+        hardlink_option.setToolTip(
+            "Create hardlinks instead of file copies. Works only on same drive!"
+        )
+        hardlink_setting = self.get_setting("hardlinks")
+        if not isinstance(hardlink_setting, bool):
+            hardlink_setting = False
+        hardlink_option.setChecked(hardlink_setting)
+        layout.addWidget(hardlink_option)
+
+        def path_change_callback(path: str):
+            if Path(path).drive != Path(self._organizer.modsPath()).drive:
+                hardlink_option.setEnabled(False)
+            else:
+                hardlink_option.setEnabled(True)
+
+        export_dialog.file_dialog.directoryEntered.connect(path_change_callback)  # type: ignore
+        export_dialog.file_dialog.fileSelected.connect(path_change_callback)  # type: ignore
+
+        def accept_callback():
+            checked = hardlink_option.isChecked()
+            self.set_setting("hardlinks", checked)
+
+        export_dialog.add_widget_callbacks(
+            (hardlink_option, accept_callback), add_to_layout=False
+        )
+        return hardlink_option
 
     def export_mods_to_folder(
         self,
@@ -190,6 +232,7 @@ class FolderExporter(ExporterTool):
         target_path: Path | str,
         contents: bool = True,
         parent: QWidget | None = None,
+        hardlinks: bool = False,
     ):
         """Export mods to a folder
 
@@ -199,6 +242,7 @@ class FolderExporter(ExporterTool):
             contents (optional): True  = All mod contents will be exported/merged together (~virtual file tree).
                                  False = Each mod folder will be exported separately.
             parent (optional): Parent widget.
+            hardlinks (optional): create hardlinks instead of copying.
         """
         if contents:
             paths = self._collect_mod_file_paths(mods, parent)
@@ -219,7 +263,10 @@ class FolderExporter(ExporterTool):
                 abs_target_path.mkdir(exist_ok=True)
             else:
                 abs_target_path.parent.mkdir(exist_ok=True)
-                shutil.copy(absolute, abs_target_path)
+                if hardlinks:
+                    abs_target_path.hardlink_to(absolute)
+                else:
+                    shutil.copy(absolute, abs_target_path)
         progress.setValue(len(paths))
         os.startfile(target_path)
 

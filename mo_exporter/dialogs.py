@@ -27,12 +27,13 @@ class OptionsFileDialog(QFileDialog):
         self.add_widgets(*widgets)
         return self
 
-    def add_widgets(self, *widgets: QWidget):
+    def add_widgets(self, *widgets: QWidget, add_to_layout: bool = True):
         self.setOption(QFileDialog.Option.DontUseNativeDialog, True)
         layout = self.layout()
         assert layout is not None
         for widget in widgets:
-            layout.addWidget(widget)
+            if add_to_layout:
+                layout.addWidget(widget)
             self.option_widgets.append(widget)
 
     def getDirectory(
@@ -97,14 +98,16 @@ class ExportDialog:
         )
 
     def add_widget_callbacks(
-        self, *widget_callbacks: tuple[QWidget, Callable[..., Any]]
+        self,
+        *widget_callbacks: tuple[QWidget, Callable[..., Any]],
+        add_to_layout: bool = True,
     ):
         widgets: list[QWidget] = []
         for widget, accept_callback in widget_callbacks:
             self.widgets.append(widget)
             widgets.append(widget)
             self.file_dialog.accepted.connect(accept_callback)  # type: ignore
-        self.file_dialog.add_widgets(*widgets)
+        self.file_dialog.add_widgets(*widgets, add_to_layout=add_to_layout)
 
     @copy_method_params(OptionsFileDialog.getDirectory)
     def getDirectory(self, *args, **kwargs):  # type: ignore
@@ -117,6 +120,7 @@ class ExportDialog:
     def _options_widget(self):
         # Options
         options_box = QGroupBox("Options")
+        options_box.setObjectName("options")
         # overwrite
         include_overwrite = QCheckBox("Include Overwrite")
         export_overwrite_setting = self.settings_plugin.get_setting("export-overwrite")
@@ -138,6 +142,7 @@ class ExportDialog:
 
     def _export_type_widget(self):
         export_type_box = QGroupBox("Export Type")
+        export_type_box.setObjectName("export_type")
         export_type_group = QButtonGroup()
         layout = QVBoxLayout()
         mod_folder_button = QRadioButton("Export separate mod folders")
