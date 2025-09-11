@@ -1,4 +1,4 @@
-from typing import Any, Callable, Protocol, TypeGuard, cast, override
+from typing import Any, Callable, Protocol, TypeGuard, override
 
 import mobase  # pyright: ignore[reportMissingModuleSource]
 from PyQt6.QtCore import QDir, Qt
@@ -16,15 +16,12 @@ from PyQt6.QtWidgets import (
 from .utils import copy_signature
 
 
-class WithAcceptCallback(Protocol):
+# Protocol alternative
+class QWidgetWithAcceptCallback(QWidget):
     def accept_callback(self): ...
 
 
-# Intersection workaround
-class QWidgetWithAcceptCallback(QWidget, WithAcceptCallback): ...
-
-
-def has_accept_callback(o: object) -> TypeGuard[WithAcceptCallback]:
+def has_accept_callback(o: QWidget) -> TypeGuard[QWidgetWithAcceptCallback]:
     return hasattr(o, "accept_callback")
 
 
@@ -58,7 +55,6 @@ class OptionsFileDialog(QFileDialog):
                 self.accepted.connect(accept_callback)  # type: ignore
             elif has_accept_callback(widget):
                 self.accepted.connect(widget.accept_callback)  # type: ignore
-            widget = cast(QWidget, widget)
             if add_to_layout:
                 layout.addWidget(widget)
             self.widgets.append(widget)
@@ -111,7 +107,7 @@ class HasSettings(Protocol):
     def set_setting(self, key: str, value: mobase.MoVariant): ...
 
 
-class OptionBox(QGroupBox, WithAcceptCallback):
+class OptionBox(QGroupBox):
     options: list[QWidget | QWidgetWithAcceptCallback]
 
     @copy_signature(QGroupBox.__init__)
@@ -139,7 +135,7 @@ class OptionBox(QGroupBox, WithAcceptCallback):
                 option.accept_callback()
 
 
-class Option(QCheckBox, WithAcceptCallback):
+class Option(QCheckBox):
     settings_plugin: HasSettings
 
     def __init__(
