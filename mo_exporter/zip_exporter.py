@@ -115,7 +115,12 @@ class ZipExporter(ExporterTool):
         # Collect mod paths
         if overwrite_option.isChecked():
             active_mods.append(self._organizer.modList().getMod("overwrite"))
-        return self.export_mod_files_as_zip(parent, active_mods, target)
+        return self.export_mod_files_as_zip(
+            parent,
+            active_mods,
+            target,
+            include_mod_folder=self.get_setting("export-type") == "mod-folder",
+        )
 
     def _get_compression_option(self):
         compression_group_box = QGroupBox("Compression")
@@ -153,8 +158,11 @@ class ZipExporter(ExporterTool):
         parent: QWidget,
         mods: Collection[mobase.IModInterface],
         target: Path | str,
+        include_mod_folder: bool = False,
     ):
-        paths = self.collect_mod_file_paths(mods, parent)
+        paths = self.collect_mod_file_paths(
+            mods, parent, include_mod_folder=include_mod_folder
+        )
         if not paths:
             return
         if self.export_as_zip(parent, target, paths):
