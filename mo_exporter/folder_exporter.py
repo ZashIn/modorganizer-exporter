@@ -116,10 +116,9 @@ class FolderExporter(ExporterTool):
             parent (optional): Parent widget.
             hardlinks (optional): create hardlinks instead of copying.
         """
-        if contents:
-            paths = self.collect_mod_file_paths(mods, parent)
-        else:
-            paths = {Path(mod.name()): Path(mod.absolutePath()) for mod in mods}
+        paths = self.collect_mod_file_paths(
+            mods, parent, include_mod_folder=not contents
+        )
         if not paths:
             return
 

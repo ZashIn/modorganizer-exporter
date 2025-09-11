@@ -75,12 +75,14 @@ class ExporterTool(ExporterBase, mobase.IPluginTool):
     def collect_mod_file_paths(
         mods: Collection[mobase.IModInterface],
         parentWidget: QWidget | None = None,
+        include_mod_folder: bool = False,
     ) -> dict[Path, Path]:
         """Returns `{relative path: absolute path}` for all files/folders of the given mods.
 
         Args:
             active_mods: a list of mods
             parentWidget (optional): If given, show a `QProgressDialog`. Defaults to None.
+            include_mod_folder (optional): Set to True to start the relative path with the mod folder
         """
         progress = None
         if parentWidget:
@@ -89,19 +91,22 @@ class ExporterTool(ExporterBase, mobase.IPluginTool):
             )
         paths: dict[Path, Path] = {}
         for i, mod in enumerate(mods):
-            mod_tree = mod.fileTree()
             if progress:
                 if progress.wasCanceled():
                     return {}
                 progress.setValue(i)
+            mod_abs_path = mod.absolutePath()
+            mod_folder_name = Path(mod_abs_path).name
+            mod_tree = mod.fileTree()
 
             def mod_tree_walker(
                 path: str, entry: mobase.FileTreeEntry
             ) -> mobase.IFileTree.WalkReturn:
                 entry_relative_path = Path(path, entry.name())
-                paths[entry_relative_path] = Path(
-                    mod.absolutePath(), entry_relative_path
-                )
+                entry_abs_path = Path(mod_abs_path, entry_relative_path)
+                if include_mod_folder:
+                    entry_relative_path = mod_folder_name / entry_relative_path
+                paths[entry_relative_path] = entry_abs_path
                 return mobase.IFileTree.WalkReturn.CONTINUE
 
             mod_tree.walk(mod_tree_walker)
