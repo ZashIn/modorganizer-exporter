@@ -5,7 +5,7 @@ import mobase  # pyright: ignore[reportMissingModuleSource]
 from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtWidgets import QFileDialog, QMessageBox, QWidget
 
-from .exporter import ExporterTool
+from .exporter_base import ExporterTool
 
 
 class MarkdownExporter(ExporterTool):
