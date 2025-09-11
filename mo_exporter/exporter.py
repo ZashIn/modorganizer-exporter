@@ -57,6 +57,12 @@ class ExporterBase(mobase.IPlugin):
     def settings(self) -> Sequence[mobase.PluginSetting]:
         return []
 
+    def get_setting(self, key: str) -> mobase.MoVariant:
+        return self._organizer.pluginSetting(self.name(), key)
+
+    def set_setting(self, key: str, value: mobase.MoVariant):
+        self._organizer.setPluginSetting(self.name(), key, value)
+
 
 class ExporterTool(ExporterBase, mobase.IPluginTool):
     def __init__(self) -> None:
@@ -74,12 +80,6 @@ class ExporterTool(ExporterBase, mobase.IPluginTool):
 
     @abstractmethod
     def display(self) -> None: ...
-
-    def get_setting(self, key: str) -> mobase.MoVariant:
-        return self._organizer.pluginSetting(self.name(), key)
-
-    def set_setting(self, key: str, value: mobase.MoVariant):
-        self._organizer.setPluginSetting(self.name(), key, value)
 
     def active_mods(
         self, reverse_order: bool = False, include_separators: bool = False
