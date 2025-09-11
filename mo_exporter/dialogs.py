@@ -3,6 +3,7 @@ from typing import Any, Callable, Protocol, TypeGuard, cast, override
 import mobase  # pyright: ignore[reportMissingModuleSource]
 from PyQt6.QtCore import QDir, Qt
 from PyQt6.QtWidgets import (
+    QAbstractButton,
     QButtonGroup,
     QCheckBox,
     QFileDialog,
@@ -166,6 +167,31 @@ class OverwriteOption(Option):
         parent: QWidget | None = None,
     ):
         super().__init__(settings_plugin, setting, text, parent)
+
+
+class SeparatorOption(Option):
+    def __init__(
+        self,
+        settings_plugin: HasSettings,
+        setting: str = "export-separators",
+        text: str | None = "Include Separators",
+        parent: QWidget | None = None,
+    ):
+        super().__init__(settings_plugin, setting, text, parent)
+
+    def disable_with_option(
+        self, button: QAbstractButton, when_checked_is: bool = False
+    ):
+        """Disable this option when the given button is not checked.
+        Args:
+            when_checked_is: Set to True to disable when the button is checked.
+        """
+        self.setDisabled(button.isChecked() is when_checked_is)
+
+        def toggled_callback(checked: bool):
+            self.setDisabled(checked is when_checked_is)
+
+        button.toggled.connect(toggled_callback)  # type: ignore
 
 
 class ExportTypeBox(OptionBox):

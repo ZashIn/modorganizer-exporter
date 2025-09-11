@@ -5,11 +5,7 @@ from pathlib import Path
 
 import mobase  # pyright: ignore[reportMissingModuleSource]
 from PyQt6.QtCore import Qt, qInfo
-from PyQt6.QtWidgets import (
-    QMessageBox,
-    QProgressDialog,
-    QWidget,
-)
+from PyQt6.QtWidgets import QAbstractButton, QMessageBox, QProgressDialog, QWidget
 
 from .dialogs import (
     ExportTypeBox,
@@ -17,6 +13,7 @@ from .dialogs import (
     OptionBox,
     OptionsFileDialog,
     OverwriteOption,
+    SeparatorOption,
 )
 from .exporter_base import ExporterTool
 
@@ -37,6 +34,7 @@ class FolderExporter(ExporterTool):
             mobase.PluginSetting(
                 "export-overwrite", "Export overwrite files, too", False
             ),
+            mobase.PluginSetting("export-separators", "Export separators, too", False),
             mobase.PluginSetting(
                 "export-type",
                 "How to export the mods: mod-folder or mod-content",
@@ -51,8 +49,7 @@ class FolderExporter(ExporterTool):
 
     def display(self) -> None:
         parent = self._parentWidget()
-        active_mods = list(self.active_mods())
-        if not active_mods:
+        if not any(True for _ in self.active_mods()):
             QMessageBox.information(parent, self.name(), "No active mods!")
             return
 
@@ -61,9 +58,19 @@ class FolderExporter(ExporterTool):
         )
         overwrite_option = OverwriteOption(self, "export-overwrite")
         hardlink_option = self._hardlink_option(export_dialog)
+        export_type_box = ExportTypeBox(self, "export-type")
+
+        # Link separator export with mod folder option
+        separator_option = SeparatorOption(self, "export-separators")
+        separator_option.disable_with_option(
+            export_type_box.findChild(QAbstractButton, "mod-folder")
+        )
+
         export_dialog.with_widgets(
-            OptionBox().with_options(overwrite_option, hardlink_option),
-            ExportTypeBox(self, "export-type"),
+            OptionBox().with_options(
+                overwrite_option, separator_option, hardlink_option
+            ),
+            export_type_box,
         )
 
         target_dir = export_dialog.getDirectory()
@@ -71,6 +78,9 @@ class FolderExporter(ExporterTool):
             return
         target_path = Path(target_dir)
 
+        active_mods = list(
+            self.active_mods(include_separators=separator_option.isChecked())
+        )
         if overwrite_option.isChecked():
             active_mods.append(self._organizer.modList().getMod("overwrite"))
         self.export_mods_to_folder(
