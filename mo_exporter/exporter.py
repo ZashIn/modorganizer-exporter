@@ -14,7 +14,6 @@ from PyQt6.QtWidgets import (
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
-    QMainWindow,
     QMessageBox,
     QProgressDialog,
     QSizePolicy,
@@ -30,6 +29,7 @@ from .dialogs import (
     OptionsFileDialog,
     OverwriteOption,
 )
+from .modlist_helper import ModListHelper
 
 
 class ExporterBase(mobase.IPlugin):
@@ -81,28 +81,18 @@ class ExporterTool(ExporterBase, mobase.IPluginTool):
     def set_setting(self, key: str, value: mobase.MoVariant):
         self._organizer.setPluginSetting(self.name(), key, value)
 
-    def _active_mod_names(self, reverse: bool = False) -> Iterable[str]:
+    def active_mods(
+        self, reverse_order: bool = False, include_separators: bool = False
+    ) -> Iterable[mobase.IModInterface]:
         """Yield active mods in MOs load order."""
-        modlist = self._organizer.modList()
-        mods_load_order = modlist.allModsByProfilePriority()
-        for mod in reversed(mods_load_order) if reverse else mods_load_order:
-            if modlist.state(mod) & mobase.ModState.ACTIVE:
-                yield mod
+        yield from ModListHelper(
+            self._organizer,
+            reverse_order=reverse_order,
+            include_separators=include_separators,
+        ).active_mods()
 
-    def _active_mod_paths(self, reverse: bool = False) -> Iterable[Path]:
-        """Yield the (absolute) path to active mods in MOs load order."""
-        mods_path = Path(self._organizer.modsPath())
-        for mod in self._active_mod_names(reverse):
-            yield mods_path / mod
-
-    def active_mods(self, reverse: bool = False) -> Iterable[mobase.IModInterface]:
-        """Yield active mods in MOs load order."""
-        modlist = self._organizer.modList()
-        for mod in self._active_mod_names(reverse):
-            yield modlist.getMod(mod)
-
-    def _collect_mod_file_paths(
-        self,
+    @staticmethod
+    def collect_mod_file_paths(
         mods: Collection[mobase.IModInterface],
         parentWidget: QWidget | None = None,
     ) -> dict[Path, Path]:
@@ -236,7 +226,7 @@ class FolderExporter(ExporterTool):
             hardlinks (optional): create hardlinks instead of copying.
         """
         if contents:
-            paths = self._collect_mod_file_paths(mods, parent)
+            paths = self.collect_mod_file_paths(mods, parent)
         else:
             paths = {Path(mod.name()): Path(mod.absolutePath()) for mod in mods}
         if not paths:
@@ -390,7 +380,7 @@ class ZipExporter(ExporterTool):
         mods: Collection[mobase.IModInterface],
         target: Path | str,
     ):
-        paths = self._collect_mod_file_paths(mods, parent)
+        paths = self.collect_mod_file_paths(mods, parent)
         if not paths:
             return
         if self.export_as_zip(parent, target, paths):
