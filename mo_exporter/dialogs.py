@@ -1,5 +1,4 @@
-from abc import abstractmethod
-from typing import Any, Callable, Protocol, override
+from typing import Any, Callable, Protocol, TypeGuard, cast, override
 
 import mobase  # pyright: ignore[reportMissingModuleSource]
 from PyQt6.QtCore import QDir, Qt
@@ -16,9 +15,16 @@ from PyQt6.QtWidgets import (
 from .utils import copy_signature
 
 
-class WithAcceptCallback[T]:
-    @abstractmethod
-    def accept_callback(self: T): ...
+class WithAcceptCallback(Protocol):
+    def accept_callback(self): ...
+
+
+# Intersection workaround
+class QWidgetWithAcceptCallback(QWidget, WithAcceptCallback): ...
+
+
+def has_accept_callback(o: object) -> TypeGuard[WithAcceptCallback]:
+    return hasattr(o, "accept_callback")
 
 
 class OptionsFileDialog(QFileDialog):
@@ -32,14 +38,14 @@ class OptionsFileDialog(QFileDialog):
     def with_widgets(
         self,
         *widgets: QWidget
-        | WithAcceptCallback[QWidget]
+        | QWidgetWithAcceptCallback
         | tuple[QWidget, Callable[..., Any]],
         add_to_layout: bool = True,
     ):
         """Add widgets to the file dialog
 
         Args:
-            *widgets: `QWidget` or tuple of `QWidget` and an `QFileDialog.accept` callback.
+            *widgets: `QWidget`, optionally implementing `.accept_callback` or a tuple of `QWidget` and an `QFileDialog.accept` callback.
             add_to_layout (optional): Set to false to add the widgets manually to the layout(s).
         """
         self.setOption(QFileDialog.Option.DontUseNativeDialog, True)
@@ -49,8 +55,9 @@ class OptionsFileDialog(QFileDialog):
             if isinstance(widget, tuple):
                 widget, accept_callback = widget
                 self.accepted.connect(accept_callback)  # type: ignore
-            if isinstance(widget, WithAcceptCallback):
+            elif has_accept_callback(widget):
                 self.accepted.connect(widget.accept_callback)  # type: ignore
+            widget = cast(QWidget, widget)
             if add_to_layout:
                 layout.addWidget(widget)
             self.widgets.append(widget)
@@ -103,8 +110,8 @@ class HasSettings(Protocol):
     def set_setting(self, key: str, value: mobase.MoVariant): ...
 
 
-class OptionBox(QGroupBox, WithAcceptCallback[QGroupBox]):
-    options: list[QWidget]
+class OptionBox(QGroupBox, WithAcceptCallback):
+    options: list[QWidget | QWidgetWithAcceptCallback]
 
     @copy_signature(QGroupBox.__init__)
     def __init__(self, *args, **kwargs):  # type: ignore
@@ -117,7 +124,7 @@ class OptionBox(QGroupBox, WithAcceptCallback[QGroupBox]):
         self.setLayout(layout)
         self.options = []
 
-    def with_options(self, *options: QWidget | WithAcceptCallback[QWidget]):
+    def with_options(self, *options: QWidget | QWidgetWithAcceptCallback):
         layout = self.layout()
         assert layout is not None
         for option in options:
@@ -127,11 +134,11 @@ class OptionBox(QGroupBox, WithAcceptCallback[QGroupBox]):
 
     def accept_callback(self):
         for option in self.options:
-            if isinstance(option, WithAcceptCallback):
+            if has_accept_callback(option):
                 option.accept_callback()
 
 
-class Option(QCheckBox, WithAcceptCallback[QCheckBox]):
+class Option(QCheckBox, WithAcceptCallback):
     settings_plugin: HasSettings
 
     def __init__(
