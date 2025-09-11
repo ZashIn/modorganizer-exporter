@@ -1,4 +1,5 @@
-from typing import Any, Callable, Protocol, Self
+from abc import abstractmethod
+from typing import Any, Callable, Protocol, override
 
 import mobase
 from PyQt6.QtCore import QDir, Qt
@@ -12,29 +13,48 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from .utils import copy_method_params, copy_signature
+from .utils import copy_signature
+
+
+class WithAcceptCallback[T]:
+    @abstractmethod
+    def accept_callback(self: T): ...
 
 
 class OptionsFileDialog(QFileDialog):
-    option_widgets: list[QWidget]
+    widgets: list[QWidget]
 
     @copy_signature(QFileDialog.__init__)
     def __init__(self, *args, **kwargs):  # type: ignore
         super().__init__(*args, **kwargs)  # type: ignore
-        self.option_widgets = []
+        self.widgets = []
 
-    def with_widgets(self, *widgets: QWidget) -> Self:
-        self.add_widgets(*widgets)
-        return self
+    def with_widgets(
+        self,
+        *widgets: QWidget
+        | WithAcceptCallback[QWidget]
+        | tuple[QWidget, Callable[..., Any]],
+        add_to_layout: bool = True,
+    ):
+        """Add widgets to the file dialog
 
-    def add_widgets(self, *widgets: QWidget, add_to_layout: bool = True):
+        Args:
+            *widgets: `QWidget` or tuple of `QWidget` and an `QFileDialog.accept` callback.
+            add_to_layout (optional): Set to false to add the widgets manually to the layout(s).
+        """
         self.setOption(QFileDialog.Option.DontUseNativeDialog, True)
         layout = self.layout()
         assert layout is not None
         for widget in widgets:
+            if isinstance(widget, tuple):
+                widget, accept_callback = widget
+                self.accepted.connect(accept_callback)  # type: ignore
+            if isinstance(widget, WithAcceptCallback):
+                self.accepted.connect(widget.accept_callback)  # type: ignore
             if add_to_layout:
                 layout.addWidget(widget)
-            self.option_widgets.append(widget)
+            self.widgets.append(widget)
+        return self
 
     def getDirectory(
         self,
@@ -83,89 +103,94 @@ class HasSettings(Protocol):
     def set_setting(self, key: str, value: mobase.MoVariant): ...
 
 
-class ExportDialog:
-    widgets: list[QWidget]
+class OptionBox(QGroupBox, WithAcceptCallback[QGroupBox]):
+    options: list[QWidget]
 
-    def __init__(
-        self, settings_plugin: HasSettings, file_dialog: OptionsFileDialog | None
-    ) -> None:
-        self.settings_plugin = settings_plugin
-        self.file_dialog = file_dialog or OptionsFileDialog()
-        self.widgets = []
-        self.add_widget_callbacks(
-            self._options_widget(),
-            self._export_type_widget(),
-        )
-
-    def add_widget_callbacks(
-        self,
-        *widget_callbacks: tuple[QWidget, Callable[..., Any]],
-        add_to_layout: bool = True,
-    ):
-        widgets: list[QWidget] = []
-        for widget, accept_callback in widget_callbacks:
-            self.widgets.append(widget)
-            widgets.append(widget)
-            self.file_dialog.accepted.connect(accept_callback)  # type: ignore
-        self.file_dialog.add_widgets(*widgets, add_to_layout=add_to_layout)
-
-    @copy_method_params(OptionsFileDialog.getDirectory)
-    def getDirectory(self, *args, **kwargs):  # type: ignore
-        return self.file_dialog.getDirectory(*args, **kwargs)  # type: ignore
-
-    @copy_method_params(OptionsFileDialog.getFile)
-    def getFile(self, *args, **kwargs):  # type: ignore
-        return self.file_dialog.getFile(*args, **kwargs)  # type: ignore
-
-    def _options_widget(self):
-        # Options
-        options_box = QGroupBox("Options")
-        options_box.setObjectName("options")
-        # overwrite
-        include_overwrite = QCheckBox("Include Overwrite")
-        export_overwrite_setting = self.settings_plugin.get_setting("export-overwrite")
-        if not isinstance(export_overwrite_setting, bool):
-            export_overwrite_setting = False
-        include_overwrite.setChecked(export_overwrite_setting)
+    @copy_signature(QGroupBox.__init__)
+    def __init__(self, *args, **kwargs):  # type: ignore
+        super().__init__(*args, **kwargs)  # type: ignore
+        if not self.title():
+            self.setTitle("Options")
+        self.setObjectName(self.title())
         layout = QVBoxLayout()
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        layout.addWidget(include_overwrite)
-        options_box.setLayout(layout)
+        self.setLayout(layout)
+        self.options = []
 
-        def accept_callback():
-            export_overwrite_setting = include_overwrite.isChecked()
-            self.settings_plugin.set_setting(
-                "export-overwrite", export_overwrite_setting
-            )
+    def with_options(self, *options: QWidget | WithAcceptCallback[QWidget]):
+        layout = self.layout()
+        assert layout is not None
+        for option in options:
+            self.options.append(option)
+            layout.addWidget(option)
+        return self
 
-        return options_box, accept_callback
+    def accept_callback(self):
+        for option in self.options:
+            if isinstance(option, WithAcceptCallback):
+                option.accept_callback()
 
-    def _export_type_widget(self):
-        export_type_box = QGroupBox("Export Type")
-        export_type_box.setObjectName("export_type")
+
+class Option(QCheckBox, WithAcceptCallback[QCheckBox]):
+    settings_plugin: HasSettings
+
+    def __init__(
+        self,
+        settings_plugin: HasSettings,
+        setting: str,
+        text: str | None = None,
+        parent: QWidget | None = None,
+    ):
+        super().__init__(text, parent)
+        self.settings_plugin = settings_plugin
+        self.setting = setting
+        self.setChecked(settings_plugin.get_setting(setting) is True)
+
+    def accept_callback(self):
+        self.settings_plugin.set_setting(self.setting, self.isChecked())
+
+
+class OverwriteOption(Option):
+    def __init__(
+        self,
+        settings_plugin: HasSettings,
+        setting: str = "export-overwrite",
+        text: str | None = "Include Overwrite",
+        parent: QWidget | None = None,
+    ):
+        super().__init__(settings_plugin, setting, text, parent)
+
+class ExportTypeBox(OptionBox):
+    settings_plugin: HasSettings
+    setting: str
+    export_type_group: QButtonGroup
+
+    def __init__(self, settings_plugin: HasSettings, setting: str = "export-type"):
+        super().__init__("Export Type")
+
         export_type_group = QButtonGroup()
-        layout = QVBoxLayout()
         mod_folder_button = QRadioButton("Export separate mod folders")
+        mod_folder_button.setObjectName("mod-content")
         mod_folder_button.setToolTip("Export each mod as a separate folder")
         export_type_group.addButton(mod_folder_button)
+
         mod_content_button = QRadioButton("Export combined mod contents")
+        mod_folder_button.setObjectName("mod-folder")
         mod_content_button.setToolTip(
             "Export the contents of each mod together (~virtual file tree)"
         )
         export_type_group.addButton(mod_content_button)
-        if self.settings_plugin.get_setting("export-type") == "mod-folder":
+
+        if settings_plugin.get_setting(setting) == "mod-folder":
             mod_folder_button.setChecked(True)
         else:
             mod_content_button.setChecked(True)
-        for button in export_type_group.buttons():
-            layout.addWidget(button)
-        export_type_box.setLayout(layout)
+        self.with_options(*export_type_group.buttons())
 
-        def accept_callback():
-            export_contents = mod_content_button.isChecked()
-            self.settings_plugin.set_setting(
-                "export-type",
-                "mod-content" if export_contents else "mod-folder",
-            )
-
-        return export_type_box, accept_callback
+    @override
+    def accept_callback(self):
+        checked = self.export_type_group.checkedButton()
+        self.settings_plugin.set_setting(
+            self.setting,
+            checked.objectName() if checked else "mod-content",
+        )

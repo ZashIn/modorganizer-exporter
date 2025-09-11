@@ -10,11 +10,11 @@ import mobase
 from PyQt6.QtCore import Qt, qCritical, qInfo
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
-    QCheckBox,
     QComboBox,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
+    QMainWindow,
     QMessageBox,
     QProgressDialog,
     QSizePolicy,
@@ -23,7 +23,13 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from .dialogs import ExportDialog, OptionsFileDialog
+from .dialogs import (
+    ExportTypeBox,
+    Option,
+    OptionBox,
+    OptionsFileDialog,
+    OverwriteOption,
+)
 
 
 class ExporterBase(mobase.IPlugin):
@@ -169,22 +175,22 @@ class FolderExporter(ExporterTool):
             QMessageBox.information(parent, self.name(), "No active mods!")
             return
 
-        export_dialog = ExportDialog(
-            self,
-            OptionsFileDialog(
-                parent,
-                "Select a folder to export all active mod files into",
-            ),
+        export_dialog = OptionsFileDialog(
+            parent, "Select a folder to export all active mod files into"
         )
-        # Add hardlink option
-        hardlink_option = self._add_hardlink_widget(export_dialog)
+        overwrite_option = OverwriteOption(self, "overwrite-option")
+        hardlink_option = self._hardlink_option(export_dialog)
+        export_dialog.with_widgets(
+            OptionBox().with_options(overwrite_option, hardlink_option),
+            ExportTypeBox(self, "export-type"),
+        )
 
         target_dir = export_dialog.getDirectory()
         if not target_dir:
             return
         target_path = Path(target_dir)
 
-        if self.get_setting("export-overwrite") is True:
+        if overwrite_option.isChecked():
             active_mods.append(self._organizer.modList().getMod("overwrite"))
         self.export_mods_to_folder(
             active_mods,
@@ -194,19 +200,11 @@ class FolderExporter(ExporterTool):
             hardlink_option.isEnabled() and hardlink_option.isChecked(),
         )
 
-    def _add_hardlink_widget(self, export_dialog: ExportDialog):
-        options_box = export_dialog.file_dialog.findChild(QGroupBox, "options")
-        layout = options_box.layout()
-        assert layout is not None
-        hardlink_option = QCheckBox("Use Hardlinks")
+    def _hardlink_option(self, export_dialog: OptionsFileDialog):
+        hardlink_option = Option(self, "hardlinks", "Use Hardlinks")
         hardlink_option.setToolTip(
             "Create hardlinks instead of file copies. Works only on same drive!"
         )
-        hardlink_setting = self.get_setting("hardlinks")
-        if not isinstance(hardlink_setting, bool):
-            hardlink_setting = False
-        hardlink_option.setChecked(hardlink_setting)
-        layout.addWidget(hardlink_option)
 
         def path_change_callback(path: str):
             if Path(path).drive != Path(self._organizer.modsPath()).drive:
@@ -214,16 +212,9 @@ class FolderExporter(ExporterTool):
             else:
                 hardlink_option.setEnabled(True)
 
-        export_dialog.file_dialog.directoryEntered.connect(path_change_callback)  # type: ignore
-        export_dialog.file_dialog.fileSelected.connect(path_change_callback)  # type: ignore
+        export_dialog.directoryEntered.connect(path_change_callback)  # type: ignore
+        export_dialog.fileSelected.connect(path_change_callback)  # type: ignore
 
-        def accept_callback():
-            checked = hardlink_option.isChecked()
-            self.set_setting("hardlinks", checked)
-
-        export_dialog.add_widget_callbacks(
-            (hardlink_option, accept_callback), add_to_layout=False
-        )
         return hardlink_option
 
     def export_mods_to_folder(
@@ -337,16 +328,17 @@ class ZipExporter(ExporterTool):
             return
 
         # File dialog
-        export_dialog = ExportDialog(
-            self,
-            OptionsFileDialog(
-                parent,
-                "Save zip file with all active mods files",
-            ),
+        overwrite_option = OverwriteOption(self, "export-overwrite")
+        export_dialog = OptionsFileDialog(
+            parent, "Save zip file with all active mods files"
+        ).with_widgets(
+            OptionBox().with_options(overwrite_option),
+            ExportTypeBox(self, "export-type"),
+            self._get_compression_option(),
         )
+
         # Add zip compression widget, next to last layout (keeping button at edge)
-        export_dialog.add_widget_callbacks(self._get_compression_widget())
-        layout = export_dialog.file_dialog.layout()
+        layout = export_dialog.layout()
         assert isinstance(layout, QGridLayout)
         sub_layout = QHBoxLayout()
         sub_layout.addWidget(export_dialog.widgets[-2])
@@ -357,11 +349,11 @@ class ZipExporter(ExporterTool):
             return
 
         # Collect mod paths
-        if self.get_setting("export-overwrite") is True:
+        if overwrite_option.isChecked():
             active_mods.append(self._organizer.modList().getMod("overwrite"))
         return self.export_mod_files_as_zip(parent, active_mods, target)
 
-    def _get_compression_widget(self):
+    def _get_compression_option(self):
         compression_group_box = QGroupBox("Compression")
         layout = QVBoxLayout()
         compression_combo_box = QComboBox()
@@ -374,6 +366,7 @@ class ZipExporter(ExporterTool):
 
         compression_level = QSpinBox()
         compression_level.setPrefix("level: ")
+        compression_level.setToolTip("ZIP_DEFLATED: 0-9, ZIP_BZIP2: 1-9, Default: -1")
         compression_level.setRange(-1, 9)
         compression_level.setValue(self._compression_level or -1)
         compression_level.setWrapping(True)
