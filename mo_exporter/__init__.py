@@ -1,4 +1,4 @@
-import mobase
+import mobase  # pyright: ignore[reportMissingModuleSource]
 
 from .exporter import ExporterBase, FolderExporter, ZipExporter
 from .markdown_exporter import MarkdownExporter, MarkdownToClip

@@ -6,7 +6,7 @@ from abc import abstractmethod
 from collections.abc import Collection, Iterable, Mapping, Sequence
 from pathlib import Path
 
-import mobase
+import mobase  # pyright: ignore[reportMissingModuleSource]
 from PyQt6.QtCore import Qt, qCritical, qInfo
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (

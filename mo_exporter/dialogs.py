@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from typing import Any, Callable, Protocol, override
 
-import mobase
+import mobase  # pyright: ignore[reportMissingModuleSource]
 from PyQt6.QtCore import QDir, Qt
 from PyQt6.QtWidgets import (
     QButtonGroup,
@@ -159,6 +159,7 @@ class OverwriteOption(Option):
         parent: QWidget | None = None,
     ):
         super().__init__(settings_plugin, setting, text, parent)
+
 
 class ExportTypeBox(OptionBox):
     settings_plugin: HasSettings

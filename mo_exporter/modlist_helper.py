@@ -2,7 +2,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
-import mobase
+import mobase  # pyright: ignore[reportMissingModuleSource]
 
 
 @dataclass

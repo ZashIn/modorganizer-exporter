@@ -1,7 +1,7 @@
 from collections.abc import Iterable
 from pathlib import Path
 
-import mobase
+import mobase  # pyright: ignore[reportMissingModuleSource]
 from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtWidgets import QFileDialog, QMessageBox, QWidget
 
