@@ -175,8 +175,10 @@ class ExportTypeBox(OptionBox):
 
     def __init__(self, settings_plugin: HasSettings, setting: str = "export-type"):
         super().__init__("Export Type")
+        self.settings_plugin = settings_plugin
+        self.setting = setting
 
-        export_type_group = QButtonGroup()
+        self.export_type_group = export_type_group = QButtonGroup()
         mod_folder_button = QRadioButton("Export separate mod folders")
         mod_folder_button.setObjectName("mod-content")
         mod_folder_button.setToolTip("Export each mod as a separate folder")
