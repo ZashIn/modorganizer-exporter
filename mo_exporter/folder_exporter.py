@@ -59,7 +59,7 @@ class FolderExporter(ExporterTool):
         export_dialog = OptionsFileDialog(
             parent, "Select a folder to export all active mod files into"
         )
-        overwrite_option = OverwriteOption(self, "overwrite-option")
+        overwrite_option = OverwriteOption(self, "export-overwrite")
         hardlink_option = self._hardlink_option(export_dialog)
         export_dialog.with_widgets(
             OptionBox().with_options(overwrite_option, hardlink_option),
