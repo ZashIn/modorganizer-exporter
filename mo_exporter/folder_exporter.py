@@ -45,6 +45,7 @@ class FolderExporter(ExporterTool):
                 "Use hardlinks instead of file copies",
                 False,
             ),
+            mobase.PluginSetting("overwrite-exiting", "Overwrite existing files", True),
         ]
 
     def display(self) -> None:
@@ -66,9 +67,16 @@ class FolderExporter(ExporterTool):
             export_type_box.findChild(QAbstractButton, "mod-folder")
         )
 
+        overwrite_existing_option = Option(
+            self, "overwrite-exiting", "Overwrite existing files"
+        )
+
         export_dialog.with_widgets(
             OptionBox().with_options(
-                overwrite_option, separator_option, hardlink_option
+                overwrite_option,
+                separator_option,
+                hardlink_option,
+                overwrite_existing_option,
             ),
             export_type_box,
         )
@@ -88,7 +96,8 @@ class FolderExporter(ExporterTool):
             target_path,
             self.get_setting("export-type") == "mod-content",
             parent,
-            hardlink_option.isEnabled() and hardlink_option.isChecked(),
+            overwrite_existing=overwrite_existing_option.isChecked(),
+            hardlinks=hardlink_option.isEnabled() and hardlink_option.isChecked(),
         )
 
     def _hardlink_option(self, export_dialog: OptionsFileDialog):
@@ -114,6 +123,7 @@ class FolderExporter(ExporterTool):
         target_path: Path | str,
         contents: bool = True,
         parent: QWidget | None = None,
+        overwrite_existing: bool = True,
         hardlinks: bool = False,
     ):
         """Export mods to a folder
@@ -124,6 +134,7 @@ class FolderExporter(ExporterTool):
             contents (optional): True  = All mod contents will be exported/merged together (~virtual file tree).
                                  False = Each mod folder will be exported separately.
             parent (optional): Parent widget.
+            overwrite_existing (optional): Overwrite existing files. Set to False to skip them.
             hardlinks (optional): create hardlinks instead of copying.
         """
         paths = self.collect_mod_file_paths(
@@ -135,20 +146,39 @@ class FolderExporter(ExporterTool):
         # Copy mod files to target dir
         progress = QProgressDialog("Exporting mods...", "Abort", 0, len(paths), parent)
         progress.setWindowModality(Qt.WindowModality.WindowModal)
+        skipped_files: list[tuple[Path, Path]] = []
+        overwritten_files: list[Path] = []
         for i, [relative, absolute] in enumerate(paths.items()):
             if progress.wasCanceled():
+                progress.setValue(len(paths))
                 break
             progress.setValue(i)
             abs_target_path = target_path / relative
+            abs_target_path.parent.mkdir(exist_ok=True, parents=True)
             if absolute.is_dir():
                 abs_target_path.mkdir(exist_ok=True)
+                continue
+            if abs_target_path.exists():
+                if not overwrite_existing:
+                    skipped_files.append((absolute, abs_target_path))
+                    continue
+                abs_target_path.unlink()
+                overwritten_files.append(abs_target_path)
+            if hardlinks:
+                abs_target_path.hardlink_to(absolute)
             else:
-                abs_target_path.parent.mkdir(exist_ok=True)
-                if hardlinks:
-                    abs_target_path.hardlink_to(absolute)
-                else:
-                    shutil.copy(absolute, abs_target_path)
+                shutil.copy2(absolute, abs_target_path)
         else:
-            qInfo(f"{len(mods)} mods exported to {target_path}")
+            msgs = [
+                f"{len(mods)} mods with {progress.value()} files/folders exported to {target_path}"
+            ]
+            progress.setValue(len(paths))
+            if overwritten_files:
+                msgs.append(f"{len(overwritten_files)} existing files overwritten")
+            elif skipped_files:
+                msgs.append(f"{len(skipped_files)} existing files skipped")
+            QMessageBox.information(parent, "Export Complete", ",\n".join(msgs) + ".")
+            qInfo(", ".join(msgs))
+            os.startfile(target_path)
+            return
         progress.setValue(len(paths))
-        os.startfile(target_path)
