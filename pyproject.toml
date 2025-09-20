@@ -1,6 +1,6 @@
 [project]
 name = "mo_exporter"
-version = "1.1.0"
+version = "1.2.0"
 description = "Export tools for Mod Organizer 2"
 authors = [{ name = "Zash", email = "zash@fantasymail.de" }]
 readme = "README.md"
