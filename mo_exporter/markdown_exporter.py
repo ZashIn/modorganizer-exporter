@@ -10,7 +10,7 @@ from .exporter_base import ExporterTool
 
 class MarkdownExporter(ExporterTool):
     def name(self) -> str:
-        return f"{self._base_name} Markdown"
+        return f"{self._base_name}-Markdown"
 
     def displayName(self) -> str:
         return f"{self._base_name}/Markdown List"

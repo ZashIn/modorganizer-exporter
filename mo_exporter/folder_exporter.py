@@ -20,7 +20,7 @@ from .exporter_base import ExporterTool
 
 class FolderExporter(ExporterTool):
     def name(self) -> str:
-        return f"{self._base_name} Folder"
+        return f"{self._base_name}-Folder"
 
     def displayName(self) -> str:
         return f"{self._base_name}/To Folder"

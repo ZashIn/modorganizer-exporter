@@ -39,7 +39,7 @@ class ZipCompressionMethod(enum.IntEnum):
 
 class ZipExporter(ExporterTool):
     def name(self) -> str:
-        return f"{self._base_name} Zip"
+        return f"{self._base_name}-Zip"
 
     def displayName(self) -> str:
         return f"{self._base_name}/To Zip File"
