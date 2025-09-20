@@ -1,6 +1,7 @@
 import fnmatch
 import os
 import shutil
+import sys
 from collections.abc import Collection, Sequence
 from pathlib import Path
 
@@ -209,6 +210,7 @@ class FolderExporter(ExporterTool):
                 )
             msgbox.open()  # type: ignore
             qInfo(", ".join(msgs))
-            os.startfile(target_path)
+            if sys.platform == "win32":
+                os.startfile(target_path)
             return
         progress.setValue(len(paths))
