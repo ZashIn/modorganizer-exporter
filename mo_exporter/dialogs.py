@@ -8,7 +8,10 @@ from PyQt6.QtWidgets import (
     QCheckBox,
     QFileDialog,
     QGroupBox,
+    QLabel,
+    QPlainTextEdit,
     QRadioButton,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -192,37 +195,73 @@ class SeparatorOption(Option):
 
 class ExportTypeBox(OptionBox):
     settings_plugin: HasSettings
-    setting: str
+    type_setting: str
+    filter_setting: str
     export_type_group: QButtonGroup
+    export_filter: QPlainTextEdit
 
-    def __init__(self, settings_plugin: HasSettings, setting: str = "export-type"):
+    def __init__(
+        self,
+        settings_plugin: HasSettings,
+        type_setting: str = "export-type",
+        filter_setting: str = "filter",
+    ):
         super().__init__("Export Type")
         self.settings_plugin = settings_plugin
-        self.setting = setting
+        self.type_setting = type_setting
+        self.filter_setting = filter_setting
 
-        self.export_type_group = export_type_group = QButtonGroup()
+        self._add_export_type()
+        self._add_export_filter()
+
+    def _add_export_type(self):
+        self.export_type_group = QButtonGroup()
         mod_folder_button = QRadioButton("Export separate mod folders")
         mod_folder_button.setObjectName("mod-content")
         mod_folder_button.setToolTip("Export each mod as a separate folder")
-        export_type_group.addButton(mod_folder_button)
+        self.export_type_group.addButton(mod_folder_button)
 
         mod_content_button = QRadioButton("Export combined mod contents")
         mod_folder_button.setObjectName("mod-folder")
         mod_content_button.setToolTip(
             "Export the contents of each mod together (~virtual file tree)"
         )
-        export_type_group.addButton(mod_content_button)
+        self.export_type_group.addButton(mod_content_button)
 
-        if settings_plugin.get_setting(setting) == "mod-folder":
+        if self.settings_plugin.get_setting(self.type_setting) == "mod-folder":
             mod_folder_button.setChecked(True)
         else:
             mod_content_button.setChecked(True)
-        self.with_options(*export_type_group.buttons())
+        self.with_options(*self.export_type_group.buttons())
+
+    def _add_export_filter(self):
+        layout = self.layout()
+        assert isinstance(layout, QVBoxLayout)
+        layout.addSpacing(layout.spacing())
+        layout.addWidget(QLabel("Exclude:"))
+        text = str(self.settings_plugin.get_setting(self.filter_setting))
+        self.export_filter = QPlainTextEdit(text)
+        fontMetrics = self.export_filter.fontMetrics()
+        self.export_filter.setToolTip("Glob patterns to exclude from export.")
+        self.export_filter.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
+        self.export_filter.setMinimumHeight(
+            max(
+                3 * fontMetrics.lineSpacing(),
+                fontMetrics.size(0, text).height() + fontMetrics.lineSpacing(),
+            )
+        )
+        self.export_filter.setSizePolicy(
+            QSizePolicy.Policy.Minimum, QSizePolicy.Policy.MinimumExpanding
+        )
+        self.with_options(self.export_filter)
 
     @override
     def accept_callback(self):
         checked = self.export_type_group.checkedButton()
         self.settings_plugin.set_setting(
-            self.setting,
+            self.type_setting,
             checked.objectName() if checked else "mod-content",
+        )
+        self.settings_plugin.set_setting(
+            self.filter_setting, self.export_filter.toPlainText()
         )

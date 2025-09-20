@@ -1,3 +1,4 @@
+import fnmatch
 import os
 import shutil
 from collections.abc import Collection, Sequence
@@ -5,7 +6,12 @@ from pathlib import Path
 
 import mobase  # pyright: ignore[reportMissingModuleSource]
 from PyQt6.QtCore import Qt, qInfo
-from PyQt6.QtWidgets import QAbstractButton, QMessageBox, QProgressDialog, QWidget
+from PyQt6.QtWidgets import (
+    QAbstractButton,
+    QMessageBox,
+    QProgressDialog,
+    QWidget,
+)
 
 from .dialogs import (
     ExportTypeBox,
@@ -46,6 +52,7 @@ class FolderExporter(ExporterTool):
                 False,
             ),
             mobase.PluginSetting("overwrite-exiting", "Overwrite existing files", True),
+            mobase.PluginSetting("filter", "Glob patterns to exclude from export.", ""),
         ]
 
     def display(self) -> None:
@@ -59,7 +66,7 @@ class FolderExporter(ExporterTool):
         )
         overwrite_option = OverwriteOption(self, "export-overwrite")
         hardlink_option = self._hardlink_option(export_dialog)
-        export_type_box = ExportTypeBox(self, "export-type")
+        export_type_box = ExportTypeBox(self, "export-type", "filter")
 
         # Link separator export with mod folder option
         separator_option = SeparatorOption(self, "export-separators")
@@ -98,6 +105,7 @@ class FolderExporter(ExporterTool):
             parent,
             overwrite_existing=overwrite_existing_option.isChecked(),
             hardlinks=hardlink_option.isEnabled() and hardlink_option.isChecked(),
+            file_filter=str(self.get_setting("filter")).splitlines(),
         )
 
     def _hardlink_option(self, export_dialog: OptionsFileDialog):
@@ -125,6 +133,7 @@ class FolderExporter(ExporterTool):
         parent: QWidget | None = None,
         overwrite_existing: bool = True,
         hardlinks: bool = False,
+        file_filter: list[str] | str | None = None,
     ):
         """Export mods to a folder
 
@@ -136,12 +145,15 @@ class FolderExporter(ExporterTool):
             parent (optional): Parent widget.
             overwrite_existing (optional): Overwrite existing files. Set to False to skip them.
             hardlinks (optional): create hardlinks instead of copying.
+            file_filter (optional): List of glob patterns to exclude from export.
         """
         paths = self.collect_mod_file_paths(
             mods, parent, include_mod_folder=not contents
         )
         if not paths:
             return
+        if not file_filter:
+            file_filter = []
 
         # Copy mod files to target dir
         progress = QProgressDialog("Exporting mods...", "Abort", 0, len(paths), parent)
@@ -154,6 +166,13 @@ class FolderExporter(ExporterTool):
                 break
             progress.setValue(i)
             abs_target_path = target_path / relative
+
+            # Filter
+            relative_str = str(relative)
+            if any(fnmatch.fnmatch(relative_str, glob) for glob in file_filter):
+                skipped_files.append((absolute, abs_target_path))
+                continue
+
             abs_target_path.parent.mkdir(exist_ok=True, parents=True)
             if absolute.is_dir():
                 abs_target_path.mkdir(exist_ok=True)
@@ -175,9 +194,20 @@ class FolderExporter(ExporterTool):
             progress.setValue(len(paths))
             if overwritten_files:
                 msgs.append(f"{len(overwritten_files)} existing files overwritten")
-            elif skipped_files:
-                msgs.append(f"{len(skipped_files)} existing files skipped")
-            QMessageBox.information(parent, "Export Complete", ",\n".join(msgs) + ".")
+            if skipped_files:
+                msgs.append(f"{len(skipped_files)} files skipped")
+            msgbox = QMessageBox(
+                QMessageBox.Icon.Information,
+                "Export Complete",
+                ",\n".join(msgs) + ".",
+                parent=parent,
+            )
+            if skipped_files:
+                msgbox.setDetailedText(
+                    "Skipped files:\n"
+                    + "\n".join(str(source) for source, _ in skipped_files)
+                )
+            msgbox.open()  # type: ignore
             qInfo(", ".join(msgs))
             os.startfile(target_path)
             return

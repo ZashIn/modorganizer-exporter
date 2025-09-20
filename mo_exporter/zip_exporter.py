@@ -1,4 +1,5 @@
 import enum
+import fnmatch
 import os
 import zipfile
 from collections.abc import Collection, Mapping, Sequence
@@ -67,6 +68,7 @@ class ZipExporter(ExporterTool):
             mobase.PluginSetting(
                 "compression-level", "Compression level (0-9, see python ZipFile)", -1
             ),
+            mobase.PluginSetting("filter", "Glob patterns to exclude from export.", ""),
         ]
 
     @property
@@ -100,7 +102,7 @@ class ZipExporter(ExporterTool):
 
         # File dialog
         overwrite_option = OverwriteOption(self, "export-overwrite")
-        export_type_box = ExportTypeBox(self, "export-type")
+        export_type_box = ExportTypeBox(self, "export-type", "filter")
 
         # Link separator export with mod folder option
         separator_option = SeparatorOption(self, "export-separators")
@@ -138,6 +140,7 @@ class ZipExporter(ExporterTool):
             active_mods,
             target,
             include_mod_folder=self.get_setting("export-type") == "mod-folder",
+            file_filter=str(self.get_setting("filter")).splitlines(),
         )
 
     def _get_compression_option(self):
@@ -177,21 +180,29 @@ class ZipExporter(ExporterTool):
         mods: Collection[mobase.IModInterface],
         target: Path | str,
         include_mod_folder: bool = False,
+        file_filter: list[str] | None = None,
     ):
         paths = self.collect_mod_file_paths(
             mods, parent, include_mod_folder=include_mod_folder
         )
         if not paths:
             return
-        if self.export_as_zip(parent, target, paths):
+        if self.export_as_zip(parent, target, paths, file_filter):
             qInfo(f"{len(mods)} mods exported to {target}")
 
     def export_as_zip(
-        self, parent: QWidget, target: Path | str, paths: Mapping[Path, Path]
+        self,
+        parent: QWidget,
+        target: Path | str,
+        paths: Mapping[Path, Path],
+        file_filter: list[str] | None = None,
     ):
+        if not file_filter:
+            file_filter = []
         completed = True
         progress = QProgressDialog("Exporting mods...", "Abort", 0, len(paths), parent)
         progress.setWindowModality(Qt.WindowModality.WindowModal)
+        skipped_files: list[Path] = []
         with zipfile.ZipFile(
             target, "w", int(self._compression), compresslevel=self._compression_level
         ) as zip_file:
@@ -199,6 +210,13 @@ class ZipExporter(ExporterTool):
                 if progress.wasCanceled():
                     break
                 progress.setValue(i)
+
+                # Filter
+                relative_str = str(relative)
+                if any(fnmatch.fnmatch(relative_str, glob) for glob in file_filter):
+                    skipped_files.append(absolute)
+                    continue
+
                 zip_file.write(absolute, relative)
             else:
                 completed = False
