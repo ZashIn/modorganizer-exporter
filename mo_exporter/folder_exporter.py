@@ -42,7 +42,7 @@ class FolderExporter(ExporterTool):
             ),
             mobase.PluginSetting(
                 "hardlinks",
-                "Use hardlinks instead of file copies",
+                "Create hardlinks instead of file copies (faster, file changes stay synced). Works only on same drive!",
                 False,
             ),
             mobase.PluginSetting("overwrite-exiting", "Overwrite existing files", True),
@@ -103,7 +103,7 @@ class FolderExporter(ExporterTool):
     def _hardlink_option(self, export_dialog: OptionsFileDialog):
         hardlink_option = Option(self, "hardlinks", "Use Hardlinks")
         hardlink_option.setToolTip(
-            "Create hardlinks instead of file copies. Works only on same drive!"
+            "Create hardlinks instead of file copies (faster, file changes stay synced). Works only on same drive!"
         )
 
         def path_change_callback(path: str):
