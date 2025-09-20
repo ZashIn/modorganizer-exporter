@@ -1,6 +1,7 @@
 import enum
 import fnmatch
 import os
+import sys
 import zipfile
 from collections.abc import Collection, Mapping, Sequence
 from pathlib import Path
@@ -222,5 +223,6 @@ class ZipExporter(ExporterTool):
             else:
                 completed = False
         progress.setValue(len(paths))
-        os.startfile(target)
+        if sys.platform == "win32":
+            os.startfile(target)
         return completed
