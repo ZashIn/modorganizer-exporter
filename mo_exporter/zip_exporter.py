@@ -146,11 +146,12 @@ class ZipExporter(ExporterTool):
     def _get_compression_option(self):
         compression_group_box = QGroupBox("Compression")
         layout = QVBoxLayout()
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         compression_combo_box = QComboBox()
         compression_combo_box.addItems(method.name for method in ZipCompressionMethod)  # type: ignore
         compression_combo_box.setCurrentText(self._compression.name)
         compression_combo_box.setSizePolicy(
-            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Minimum
+            QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
         )
         layout.addWidget(compression_combo_box)
 
@@ -161,7 +162,7 @@ class ZipExporter(ExporterTool):
         compression_level.setValue(self._compression_level or -1)
         compression_level.setWrapping(True)
         compression_level.setSizePolicy(
-            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Minimum
+            QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
         )
         layout.addWidget(compression_level, alignment=Qt.AlignmentFlag.AlignLeft)
         compression_group_box.setLayout(layout)
