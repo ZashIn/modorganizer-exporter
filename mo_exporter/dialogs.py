@@ -242,7 +242,9 @@ class ExportTypeBox(OptionBox):
         text = str(self.settings_plugin.get_setting(self.filter_setting))
         self.export_filter = QPlainTextEdit(text)
         fontMetrics = self.export_filter.fontMetrics()
-        self.export_filter.setToolTip("Glob patterns to exclude from export.")
+        tip = "Glob patterns to exclude from export, e.g. *.txt"
+        self.export_filter.setPlaceholderText(tip)
+        self.export_filter.setToolTip(tip)
         self.export_filter.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         self.export_filter.setMinimumHeight(
             max(
