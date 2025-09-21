@@ -1,0 +1,38 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  RELEASE_FILE: mo_exporter-${{ github.ref_name }}.zip
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+      - name: Setup Poetry
+        uses: ZashIn/setup-poetry@v1
+        with:
+          python-version: 3.12
+      - name: Check code
+        id: check-code
+        run: poetry run poe lint
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+      - name: Pack Module
+        run: zip -r ${{ env.RELEASE_FILE }} mo_exporter/ -x "mo_exporter/__pycache__/*" "mo_exporter/.*"
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.RELEASE_FILE }}
