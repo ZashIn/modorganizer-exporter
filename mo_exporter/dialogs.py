@@ -216,22 +216,22 @@ class ExportTypeBox(OptionBox):
 
     def _add_export_type(self):
         self.export_type_group = QButtonGroup()
-        mod_folder_button = QRadioButton("Export separate mod folders")
-        mod_folder_button.setObjectName("mod-content")
-        mod_folder_button.setToolTip("Export each mod as a separate folder")
-        self.export_type_group.addButton(mod_folder_button)
-
-        mod_content_button = QRadioButton("Export combined mod contents")
-        mod_folder_button.setObjectName("mod-folder")
+        mod_content_button = QRadioButton("Export virtual file tree (mod contents)")
+        mod_content_button.setObjectName("mod-content")
         mod_content_button.setToolTip(
-            "Export the contents of each mod together (~virtual file tree)"
+            "Export the current virtual file tree (combined mod contents)"
         )
         self.export_type_group.addButton(mod_content_button)
 
-        if self.settings_plugin.get_setting(self.type_setting) == "mod-folder":
-            mod_folder_button.setChecked(True)
-        else:
+        mod_folder_button = QRadioButton("Export separate mod folders")
+        mod_folder_button.setObjectName("mod-folder")
+        mod_folder_button.setToolTip("Export each mod as a separate folder")
+        self.export_type_group.addButton(mod_folder_button)
+
+        if self.settings_plugin.get_setting(self.type_setting) == "mod-content":
             mod_content_button.setChecked(True)
+        else:
+            mod_folder_button.setChecked(True)
         self.with_options(*self.export_type_group.buttons())
 
     def _add_export_filter(self):
