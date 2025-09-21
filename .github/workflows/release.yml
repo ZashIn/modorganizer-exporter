@@ -8,6 +8,9 @@ on:
 permissions:
   contents: write
 
+env:
+  RELEASE_FILE: mo_exporter-${{ github.ref_name }}.zip
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -27,7 +30,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
+      - name: Pack Module
+        run: zip -r ${{ env.RELEASE_FILE }} mo_exporter/ -x "mo_exporter/__pycache__/*" "mo_exporter/.*"
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: mo_exporter/**/*
+          files: ${{ env.RELEASE_FILE }}
